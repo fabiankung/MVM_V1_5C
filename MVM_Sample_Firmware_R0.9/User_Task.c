@@ -641,7 +641,7 @@ void Proce_MessageLoop_StreamImage(TASK_ATTRIBUTE *ptrTask)
 			case 10: // State 10 - Reset HC-05 BlueTooth module (if attached).  Note that if we keep the HC-05 module in
 			// reset state, it will consume little power.  This trick can be used when we wish to power down
 			// HC-05 to conserve power.
-			PIN_HC_05_RESET_SET;					// Reset BlueTooth module.
+			//PIN_HC_05_RESET_SET;					// Reset BlueTooth module.
 			OSSetTaskContext(ptrTask, 11, 10*__NUM_SYSTEMTICK_MSEC);     // Next state = 11, timer = 10 msec.
 			break;
 			
