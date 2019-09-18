@@ -70,8 +70,17 @@ unsigned int	gunIPResult[_IMAGE_HRESOLUTION/4][_IMAGE_VRESOLUTION];
 #define     _RES_PARAM                  0x01
 #define     _SET_PARAM                  0x02
 
-#define PIN_HC_05_RESET_CLEAR   PIOD->PIO_ODSR |= PIO_ODSR_P24                   // Pin PD24 = Reset pin for HC-05 bluetooth module.
-#define PIN_HC_05_RESET_SET		PIOD->PIO_ODSR &= ~PIO_ODSR_P24					 // Active low.
+// Note: 18 Sep 2019 - Certain HC-05 module the 'EN' pin is active low while others are active high.  The only way to know which is which is to
+// power up the HC-05 module and check the voltage level on the 'EN' pin.  If it is high after the module initialized, then it is
+// of the active low type.  Else the module EN pin is active high type.  Connection of the EN pin to the MVM is optional, it is only
+// needed when the input voltage Vin to the MVM rises too slow, resulting in the HC-05 module cannot start up properly, thus we need
+// to manually reset the HC-05.
+
+//#define PIN_HC_05_RESET_CLEAR   PIOD->PIO_ODSR |= PIO_ODSR_P24                   // Pin PD24 = Reset pin for HC-05 bluetooth module.
+//#define PIN_HC_05_RESET_SET		PIOD->PIO_ODSR &= ~PIO_ODSR_P24					 // Active low.
+
+#define PIN_HC_05_RESET_SET   PIOD->PIO_ODSR |= PIO_ODSR_P24                   // Pin PD24 = Reset pin for HC-05 bluetooth module.
+#define PIN_HC_05_RESET_CLEAR		PIOD->PIO_ODSR &= ~PIO_ODSR_P24					 // Active high.
 
 #define PIN_FLAG1_SET			PIOD->PIO_ODSR |= PIO_ODSR_P21;					// Set flag 1.
 #define PIN_FLAG1_CLEAR			PIOD->PIO_ODSR &= ~PIO_ODSR_P21;				// Clear flag 1.
@@ -641,7 +650,7 @@ void Proce_MessageLoop_StreamImage(TASK_ATTRIBUTE *ptrTask)
 			case 10: // State 10 - Reset HC-05 BlueTooth module (if attached).  Note that if we keep the HC-05 module in
 			// reset state, it will consume little power.  This trick can be used when we wish to power down
 			// HC-05 to conserve power.
-			//PIN_HC_05_RESET_SET;					// Reset BlueTooth module.
+			PIN_HC_05_RESET_SET;					// Reset BlueTooth module.
 			OSSetTaskContext(ptrTask, 11, 10*__NUM_SYSTEMTICK_MSEC);     // Next state = 11, timer = 10 msec.
 			break;
 			
