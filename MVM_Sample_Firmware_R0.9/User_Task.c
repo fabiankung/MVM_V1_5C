@@ -6,15 +6,15 @@
 //
 // File				: User_Task.c
 // Author(s)		: Fabian Kung
-// Last modified	: 30 March 2019
+// Last modified	: 22 Nov 2019
 // Tool-suites		: Atmel Studio 7.0 or later
 //                    GCC C-Compiler
 //                    ARM CMSIS 5.0.1
 
-#include "osmain.h"
-#include "Driver_UART2_V100.h"
-#include "Driver_USART0_V100.h"
-#include "Driver_TCM8230.h"
+#include "./SAMS70_Drivers_BSP/osmain.h"
+#include "./SAMS70_Drivers_BSP/Driver_UART2_V100.h"
+#include "./SAMS70_Drivers_BSP/Driver_USART0_V100.h"
+#include "./SAMS70_Drivers_BSP/Driver_TCM8230.h"
 
 // NOTE: Public function prototypes are declared in the corresponding *.h file.
 
@@ -70,17 +70,8 @@ unsigned int	gunIPResult[_IMAGE_HRESOLUTION/4][_IMAGE_VRESOLUTION];
 #define     _RES_PARAM                  0x01
 #define     _SET_PARAM                  0x02
 
-// Note: 18 Sep 2019 - Certain HC-05 module the 'EN' pin is active low while others are active high.  The only way to know which is which is to
-// power up the HC-05 module and check the voltage level on the 'EN' pin.  If it is high after the module initialized, then it is
-// of the active low type.  Else the module EN pin is active high type.  Connection of the EN pin to the MVM is optional, it is only
-// needed when the input voltage Vin to the MVM rises too slow, resulting in the HC-05 module cannot start up properly, thus we need
-// to manually reset the HC-05.
-
-//#define PIN_HC_05_RESET_CLEAR   PIOD->PIO_ODSR |= PIO_ODSR_P24                   // Pin PD24 = Reset pin for HC-05 bluetooth module.
-//#define PIN_HC_05_RESET_SET		PIOD->PIO_ODSR &= ~PIO_ODSR_P24					 // Active low.
-
-#define PIN_HC_05_RESET_SET   PIOD->PIO_ODSR |= PIO_ODSR_P24                   // Pin PD24 = Reset pin for HC-05 bluetooth module.
-#define PIN_HC_05_RESET_CLEAR		PIOD->PIO_ODSR &= ~PIO_ODSR_P24					 // Active high.
+#define PIN_HC_05_RESET_CLEAR   PIOD->PIO_ODSR |= PIO_ODSR_P24                   // Pin PD24 = Reset pin for HC-05 bluetooth module.
+#define PIN_HC_05_RESET_SET		PIOD->PIO_ODSR &= ~PIO_ODSR_P24					 // Active low.
 
 #define PIN_FLAG1_SET			PIOD->PIO_ODSR |= PIO_ODSR_P21;					// Set flag 1.
 #define PIN_FLAG1_CLEAR			PIOD->PIO_ODSR &= ~PIO_ODSR_P21;				// Clear flag 1.
@@ -92,9 +83,9 @@ unsigned int	gunIPResult[_IMAGE_HRESOLUTION/4][_IMAGE_VRESOLUTION];
 ///
 /// Author			: Fabian Kung
 ///
-/// Last modified	: 30 March 2019
+/// Last modified	: 22 Nov 2019
 ///
-/// Code Version	: 0.99
+/// Code Version	: 0.991
 ///
 /// Processor		: ARM Cortex-M7 family
 ///
@@ -358,9 +349,13 @@ void Proce_MessageLoop_StreamImage(TASK_ATTRIBUTE *ptrTask)
 						nCurrentPixelData = nCurrentPixelData>>1;		// Note: Only 7-bits data is allowed
 					}
 					else                                // 'H', send scaled hue info.  Here we rescale the hue (0-360)
-					{									// to between 0-90, e.g. Hue/4.
-						nTemp = gunImgAtt[0][nLineCounter] & _HUE_MASK;
-						nCurrentPixelData = nTemp >> (_HUE_SHIFT + 2);
+					{									// to between 0-120, e.g. Hue/3, or between 0-90, e.g. Hue/4
+														// so that the value can fit into 7-bits byte.
+						//nTemp = gunImgAtt[0][nLineCounter] & _HUE_MASK;
+						//nCurrentPixelData = nTemp >> (_HUE_SHIFT + 2);						
+						nTemp = gunImgAtt[0][nLineCounter] & _HUE_MASK;		// Divide by 3.
+						nCurrentPixelData = nTemp >> (_HUE_SHIFT);		
+						nCurrentPixelData = nCurrentPixelData/3;					
 					}
 				}
 				else     // bytData == 'D'.
@@ -407,9 +402,13 @@ void Proce_MessageLoop_StreamImage(TASK_ATTRIBUTE *ptrTask)
 						nCurrentPixelData = nCurrentPixelData>>1;		// Note: Only 7-bits data is allowed.
 					}
 					else if (bytData == 'H')							// 'H', send scaled hue info.  Here we rescale the hue (0-360)
-					{													// to between 0-90, e.g. Hue/4.
-						nTemp = gunImgAtt[nIndex][nLineCounter] & _HUE_MASK;
-						nCurrentPixelData = nTemp >> (_HUE_SHIFT + 2);
+					{													// to between 0-120, e.g. Hue/3, or between 0-90, e.g. Hue/4
+						//so that the value can fit into 7-bits byte.
+						//nTemp = gunImgAtt[nIndex][nLineCounter] & _HUE_MASK;	// Divide by 4.
+						//nCurrentPixelData = nTemp >> (_HUE_SHIFT + 2);
+						nTemp = gunImgAtt[nIndex][nLineCounter] & _HUE_MASK;	// Divide by 3.
+						nCurrentPixelData = nTemp >> _HUE_SHIFT;
+						nCurrentPixelData = nCurrentPixelData/3;
 					}
 					else if (bytData == 'D')
 					{

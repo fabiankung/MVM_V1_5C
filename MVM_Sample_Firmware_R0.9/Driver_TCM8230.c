@@ -3,7 +3,7 @@
 //
 // File				: Drivers_TCM8230.c
 // Author(s)		: Fabian Kung
-// Last modified	: 19 Sep 2018
+// Last modified	: 22 Nov 2019
 // Tool-suites		: Atmel Studio 7.0 or later
 //                    GCC C-Compiler
 //                    ARM CMSIS 5.0.1
@@ -62,8 +62,8 @@ int		gnValidFrameBuffer;			// If equals 1, it means gunImgAtt[] data can be used
 #define     _SAT_MASK           0x003E0000  // Saturation mask, bit22-17.
 #define     _CSAT_MASK          0xFFC1FFFF  // One's complement of saturation mask.
 #define     _SAT_SHIFT          17
-#define     _NO_HUE_BRIGHT      420         // Value for no hue when object is too bright or near grayscale.
-#define     _NO_HUE_DARK		400         // Value for no hue when object is too dark.
+#define     _NO_HUE_BRIGHT      366         // Value for no hue when object is too bright or near grayscale.
+#define     _NO_HUE_DARK		363         // Value for no hue when object is too dark.
 // Valid hue ranges from 0 to 360.
 #define     _GRAD_MASK          0x7F800000  // bit30-23
 #define     _CGRAD_MASK         0x807FFFFF  // One's complement of gradient mask.
@@ -596,6 +596,7 @@ void Proce_TCM8230_Driver(TASK_ATTRIBUTE *ptrTask)
 						nDeltaRGB = unMaxRGB - unMinRGB;
 						unSat = nDeltaRGB;                         
 						// Note: Here we define the saturation as the difference between the maximum and minimum RGB values.
+						// This parameter is also called Chroma.
 						// In normal usage this value needs to be normalized with respect to maximum RGB value so that
 						// saturation is between 0.0 to 1.0.  Here to speed up computation we avoid using floating point
 						// variables. Thus the saturation is 6 bits since the color components are 6 bits, from 0 to 63.
@@ -618,7 +619,7 @@ void Proce_TCM8230_Driver(TASK_ATTRIBUTE *ptrTask)
 						// saturation level is too low, we check the maximum RGB level.  If this is <= 20, then it is
 						// 'No hue' due to low light condition.  Else it is 'No hue' due to too bright condition.
 						
-						if (nDeltaRGB < 5)              // Check if it is possible to make out the hue. 
+						if (nDeltaRGB < 3)              // Check if it is possible to make out the hue. 
 						{								
 							if (unMaxRGB < 13)			// Distinguish between too bright or too dark/grayscale conditions.	
 							{
@@ -630,7 +631,9 @@ void Proce_TCM8230_Driver(TASK_ATTRIBUTE *ptrTask)
 							}    
 						}
 						else
-						{
+						{	// Computation of hue, here I am using the hexagonal projection method for HSV color space,
+							// as described in Wikipedia. https://en.wikipedia.org/wiki/HSL_and_HSV
+							// This is easier than circular projection which require arc cosine function.
 							if (nR6 == unMaxRGB)          // nR6 is maximum. Note: since we are working with integers,
 							{                                          // be aware that when we perform integer division,
 								nHue = (60*(nG6 - nB6))/nDeltaRGB;   // the remainder will be discarded.

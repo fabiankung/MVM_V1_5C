@@ -1,8 +1,8 @@
 //////////////////////////////////////////////////////////////////////////////////////////////
 //
-// File				: Drivers_TCM8230.c
+// File				: Drivers_TCM8230.h
 // Author(s)		: Fabian Kung
-// Last modified	: 1 Aug 2018
+// Last modified	: 22 Nov 2019
 // Tool-suites		: Atmel Studio 7.0 or later
 //                    GCC C-Compiler
 //////////////////////////////////////////////////////////////////////////////////////////////
@@ -60,8 +60,8 @@ extern	int		gnValidFrameBuffer;		// If equals 1, it means gunImgAtt[] data can b
 #define     _SAT_MASK           0x003E0000  // Saturation mask, bit22-17.
 #define     _CSAT_MASK          0xFFC1FFFF  // One's complement of saturation mask.
 #define     _SAT_SHIFT          17
-#define     _NO_HUE_BRIGHT      420         // Value for no hue when object is too bright or near grayscale.
-#define     _NO_HUE_DARK		400         // Value for no hue when object is too dark.
+#define     _NO_HUE_BRIGHT      366         // Value for no hue when object is too bright or near grayscale.
+#define     _NO_HUE_DARK		363         // Value for no hue when object is too dark.
 // Valid hue ranges from 0 to 360.
 #define     _GRAD_MASK          0x7F800000  // bit30-23
 #define     _CGRAD_MASK         0x807FFFFF  // One's complement of gradient mask.
