@@ -6,7 +6,7 @@
 //
 // File				: User_Task.c
 // Author(s)		: Fabian Kung
-// Last modified	: 26 May 2020
+// Last modified	: 10 June 2020
 // Tool-suites		: Atmel Studio 7.0 or later
 //                    GCC C-Compiler
 //                    ARM CMSIS 5.4.0
@@ -749,9 +749,9 @@ __STATIC_FORCEINLINE uint32_t __MLAD (uint32_t op1, uint32_t op2, uint32_t op3)
 ///
 /// Author			: Fabian Kung
 ///
-/// Last modified	: 26 May 2020
+/// Last modified	: 10 June 2020
 ///
-/// Code Version	: 0.80
+/// Code Version	: 0.93
 ///
 /// Processor		: ARM Cortex-M7 family
 ///
@@ -788,7 +788,7 @@ tf.keras.layers.Dense(_DNN2_node, activation='softmax')
 ])
 */
 /// _roi_height and _roi_width sets the size of the image (roi == Region of Interest).
-/// 
+/// The number of output currently supported is 4.
 
 void Proce_Image4(TASK_ATTRIBUTE *ptrTask)
 {
@@ -830,7 +830,7 @@ void Proce_Image4(TASK_ATTRIBUTE *ptrTask)
 	int		nTemp;
 	
 	static  int	nROI_Startx, nROI_Starty, nROI_Stopx, nROI_Stopy;
-	static  int	nResFlat[__FLATTENNODE]; // 1D array to store the flatten nodes for Fully Connected Network.
+	static  int	nResFlat[__FLATTENNODE];	// 1D array to store the flatten nodes for Fully Connected Network.
 	static  int nResFlatOffset;
    
 	static	int nNode;
@@ -839,10 +839,11 @@ void Proce_Image4(TASK_ATTRIBUTE *ptrTask)
 	static	int64_t lnsTemp;
 	int64_t	lnTemp2;
 	int64_t	lnBias;
-	static  int nDNN1Out[__DNN1NODE];
-	static  int nDNN2Out[__DNN2NODE];
+	static  int nDNN1Out[__DNN1NODE];		// Nodes for dense layer 1.
+	static  int nDNN2Out[__DNN2NODE];		// Nodes for dense layer 2.
 	static  int nObjectPresent;
-
+    static  int nCompCount;
+	
 	if (ptrTask->nTimer == 0)
 	{
 		switch (ptrTask->nState)
@@ -864,6 +865,7 @@ void Proce_Image4(TASK_ATTRIBUTE *ptrTask)
 			case 1: // State 1 - Wait until a new frame is acquired in the image buffer before start processing.
 			if (gnFrameCounter != nCurrentFrame)			// Check if new image frame has been captured.
 			{
+				PIN_FLAG4_SET;								// Set debug flag.	
 				nCurrentFrame = gnFrameCounter;				// Update current frame counter.
 				// Set up the variables controlling the region of the image to analyze.
 				nROI_Startx = __ROI_STARTX;
@@ -872,17 +874,34 @@ void Proce_Image4(TASK_ATTRIBUTE *ptrTask)
 				nROI_Stopy = __ROI_STARTY + __ROI_HEIGHT;	
 				nfilter = 0;								// Index to filter. Start with filter 0.
 				nNode = 0;									// Index to DNN node. Start with node 0.	
-				OSSetTaskContext(ptrTask, 2, 1);			// Next state = 2, timer = 1.
+				//OSSetTaskContext(ptrTask, 2, 1);			// Next state = 2, timer = 1.
+				
+				nCompCount = 0;
+				
+				nFilA[0] = gnL1f[nfilter][0][0];			// Get the coefficients of the filter matrix and bias.
+				nFilA[1] = gnL1f[nfilter][0][1];			// Note that the coefficients are normalized to integer
+				nFilA[2] = gnL1f[nfilter][0][2];			// between -1,000,000 to +1,000,000.
+				nFilA[3] = gnL1f[nfilter][1][0];
+				nFilA[4] = gnL1f[nfilter][1][1];
+				nFilA[5] = gnL1f[nfilter][1][2];
+				nFilA[6] = gnL1f[nfilter][2][0];
+				nFilA[7] = gnL1f[nfilter][2][1];
+				nFilA[8] = gnL1f[nfilter][2][2];
+				nBias = gnL1fbias[nfilter];
+				nResFlatOffset = 0;							// Initialize offset index for result of flatten array.
+				nj = nROI_Starty;							// Point to 1st row in ROI.	
+				PIN_FLAG4_CLEAR;							// Clear debug flag.	
+				OSSetTaskContext(ptrTask, 3, 1);			// Next state = 3, timer = 1.		
 			}
 			else
 			{
 				OSSetTaskContext(ptrTask, 1, 1);			// Next state = 1, timer = 1.
 			}
 			break;
-
-			case 2: // State 2 - Initialize Layer 0 filter coefficients array and range parameters.		
-			PIN_FLAG4_SET;									// Set debug flag.	
 			
+			/*
+			case 2: // State 2 - Initialize Layer 0 filter coefficients array and range parameters.		
+			PIN_FLAG4_SET;									// Set debug flag.				
 			nFilA[0] = gnL1f[nfilter][0][0];				// Get the coefficients of the filter matrix and bias.
 			nFilA[1] = gnL1f[nfilter][0][1];				// Note that the coefficients are normalized to integer 
 			nFilA[2] = gnL1f[nfilter][0][2];				// between -1,000,000 to +1,000,000.
@@ -893,12 +912,13 @@ void Proce_Image4(TASK_ATTRIBUTE *ptrTask)
 			nFilA[7] = gnL1f[nfilter][2][1];
 			nFilA[8] = gnL1f[nfilter][2][2];
 			nBias = gnL1fbias[nfilter];
-			nResFlatOffset = 0;
+			nResFlatOffset = 0;								// Initialize offset index for result of flatten array.
 			nj = nROI_Starty;								// Point to 1st row in ROI.			
 			PIN_FLAG4_CLEAR;								// Clear debug flag.
 			OSSetTaskContext(ptrTask,3, 1);					// Next state = 3, timer = 1.
 			break;
-			
+			*/
+
 			case 3: // State 3 - Compute convolution operation for Layer 0 along horizontal direction for
 			        // two times, followed by max pooling operation.  
 			PIN_FLAG4_SET;									// Set debug flag.
@@ -920,7 +940,7 @@ void Proce_Image4(TASK_ATTRIBUTE *ptrTask)
 				nResFlat[(nj2 + nResFlatOffset)*__LAYER0_CHANNEL + nfilter] = nMaxPool2D(nConvRes1[ni2], nConvRes1[ni2+1], nConvRes2[ni2], nConvRes2[ni2+1]);
 				nj2++;									// Next element in the flatten array.
 			}
-			nResFlatOffset = nResFlatOffset + nj2;							
+			nResFlatOffset = nResFlatOffset + nj2;		// Update offset index for result of flatten array.					
 			nj = nj + __FILTER_STRIDE;					// Advance the vertical index 2x the stride.
 			nj = nj + __FILTER_STRIDE;					// distance.
 										
@@ -936,77 +956,31 @@ void Proce_Image4(TASK_ATTRIBUTE *ptrTask)
 				if (nfilter == __LAYER0_CHANNEL)			// Check if all convolution filters are attended to.
 				{
 					lnsTemp = 0;							// Clear the 64-bits accumulator register first.
-					nStartIndex = 0;						// Initialize start index.
-					if (__FLATTENNODE <= __LIMIT_CNN_FLATTEN)
-					{
-						nStopIndex = __FLATTENNODE;
-					}
-					else
-					{
-						nStopIndex = __LIMIT_CNN_FLATTEN;
-					}
+					ni = 0;									// Initialize index to point to 1st output of Flatten layer. 
 					OSSetTaskContext(ptrTask, 4, 1);		// Next state = 4, timer = 1.
 				}
 				else
 				{
-					OSSetTaskContext(ptrTask, 2, 1);		// Next state = 2, timer = 1.
+					//OSSetTaskContext(ptrTask, 2, 1);		// Next state = 2, timer = 1.
+					
+					nFilA[0] = gnL1f[nfilter][0][0];		// Get the coefficients of the filter matrix and bias.
+					nFilA[1] = gnL1f[nfilter][0][1];		// Note that the coefficients are normalized to integer
+					nFilA[2] = gnL1f[nfilter][0][2];		// between -1,000,000 to +1,000,000.
+					nFilA[3] = gnL1f[nfilter][1][0];
+					nFilA[4] = gnL1f[nfilter][1][1];
+					nFilA[5] = gnL1f[nfilter][1][2];
+					nFilA[6] = gnL1f[nfilter][2][0];
+					nFilA[7] = gnL1f[nfilter][2][1];
+					nFilA[8] = gnL1f[nfilter][2][2];
+					nBias = gnL1fbias[nfilter];
+					nResFlatOffset = 0;						// Initialize offset index for result of flatten array.
+					nj = nROI_Starty;						// Point to 1st row in ROI.		
+					OSSetTaskContext(ptrTask, 3, 1);		// Next state = 3, timer = 1.			
 				}
 				break;										// Quit this process.
 			}
 			
 			// 2nd Cycle.
-			ni2 = 0;										// Reset index to store temporary results from
-			// 2D convolution operation.
-			// --- Conv2D operation on two consecutive rows ---
-			for (ni = nROI_Startx; ni < nROI_Stopx - (__FILTER_SIZE-1); ni = ni + __FILTER_STRIDE)
-			{
-				nConvRes1[ni2] = nConv2D(ni,nj, nFilA, nBias);						// Row 1.
-				nConvRes2[ni2] = nConv2D(ni,nj + __FILTER_STRIDE, nFilA, nBias);	// Row 2.
-				ni2++;
-			}
-			
-			// --- Max-pooling operation ---
-			nj2 = 0;
-			for (ni2 = 0; ni2 < __LAYER0_X-1; ni2 = ni2 + 2)
-			{
-				nResFlat[(nj2 + nResFlatOffset)*__LAYER0_CHANNEL + nfilter] = nMaxPool2D(nConvRes1[ni2], nConvRes1[ni2+1], nConvRes2[ni2], nConvRes2[ni2+1]);
-				nj2++;									// Next element in the flatten array.
-			}
-			nResFlatOffset = nResFlatOffset + nj2;
-			nj = nj + __FILTER_STRIDE;					// Advance the vertical index 2x the stride.
-			nj = nj + __FILTER_STRIDE;					// distance.
-			
-			if (nj < (nROI_Stopy-4))					// At least 5 rows before last line as we process
-			// 5 rows of pixels at a time for stride = 2.
-			{
-				//OSSetTaskContext(ptrTask, 3, 1);			// Next state = 3, timer = 1.
-			}
-			else
-			{												// Completed the ROI.
-				PIN_FLAG4_CLEAR;							// Clear debug flag.
-				nfilter++;									// Next filter.
-				if (nfilter == __LAYER0_CHANNEL)			// Check if all convolution filters are attended to.
-				{
-					lnsTemp = 0;							// Clear the 64-bits accumulator register first.
-					nStartIndex = 0;						// Initialize start index.
-					if (__FLATTENNODE <= __LIMIT_CNN_FLATTEN)
-					{
-						nStopIndex = __FLATTENNODE;
-					}
-					else
-					{
-						nStopIndex = __LIMIT_CNN_FLATTEN;
-					}
-					OSSetTaskContext(ptrTask, 4, 1);		// Next state = 4, timer = 1.
-				}
-				else
-				{
-					OSSetTaskContext(ptrTask, 2, 1);		// Next state = 2, timer = 1.
-				}
-				break;										// Quit this process.
-			}			
-			
-			// 3rd Cycle.
 			ni2 = 0;										// Reset index to store temporary results from
 															// 2D convolution operation.
 			// --- Conv2D operation on two consecutive rows ---
@@ -1024,7 +998,123 @@ void Proce_Image4(TASK_ATTRIBUTE *ptrTask)
 				nResFlat[(nj2 + nResFlatOffset)*__LAYER0_CHANNEL + nfilter] = nMaxPool2D(nConvRes1[ni2], nConvRes1[ni2+1], nConvRes2[ni2], nConvRes2[ni2+1]);
 				nj2++;									// Next element in the flatten array.
 			}
-			nResFlatOffset = nResFlatOffset + nj2;
+			nResFlatOffset = nResFlatOffset + nj2;		// Update offset index for result of flatten array.		
+			nj = nj + __FILTER_STRIDE;					// Advance the vertical index 2x the stride.
+			nj = nj + __FILTER_STRIDE;					// distance.
+			
+			if (nj < (nROI_Stopy-4))					// At least 5 rows before last line as we process
+			// 5 rows of pixels at a time for stride = 2.
+			{
+				//OSSetTaskContext(ptrTask, 3, 1);			// Next state = 3, timer = 1.
+			}
+			else
+			{												// Completed the ROI.
+				PIN_FLAG4_CLEAR;							// Clear debug flag.
+				nfilter++;									// Next filter.
+				if (nfilter == __LAYER0_CHANNEL)			// Check if all convolution filters are attended to.
+				{
+					lnsTemp = 0;							// Clear the 64-bits accumulator register first.
+					ni = 0;									// Initialize index to point to 1st output of Flatten layer. 
+					OSSetTaskContext(ptrTask, 4, 1);		// Next state = 4, timer = 1.
+				}
+				else
+				{
+					//OSSetTaskContext(ptrTask, 2, 1);		// Next state = 2, timer = 1.
+
+					nFilA[0] = gnL1f[nfilter][0][0];		// Get the coefficients of the filter matrix and bias.
+					nFilA[1] = gnL1f[nfilter][0][1];		// Note that the coefficients are normalized to integer
+					nFilA[2] = gnL1f[nfilter][0][2];		// between -1,000,000 to +1,000,000.
+					nFilA[3] = gnL1f[nfilter][1][0];
+					nFilA[4] = gnL1f[nfilter][1][1];
+					nFilA[5] = gnL1f[nfilter][1][2];
+					nFilA[6] = gnL1f[nfilter][2][0];
+					nFilA[7] = gnL1f[nfilter][2][1];
+					nFilA[8] = gnL1f[nfilter][2][2];
+					nBias = gnL1fbias[nfilter];
+					nResFlatOffset = 0;						// Initialize offset index for result of flatten array.
+					nj = nROI_Starty;						// Point to 1st row in ROI.
+					OSSetTaskContext(ptrTask, 3, 1);		// Next state = 3, timer = 1.					
+				}
+				break;										// Quit this process.
+			}			
+
+			// 3rd Cycle.
+			ni2 = 0;										// Reset index to store temporary results from
+			// 2D convolution operation.
+			// --- Conv2D operation on two consecutive rows ---
+			for (ni = nROI_Startx; ni < nROI_Stopx - (__FILTER_SIZE-1); ni = ni + __FILTER_STRIDE)
+			{
+				nConvRes1[ni2] = nConv2D(ni,nj, nFilA, nBias);						// Row 1.
+				nConvRes2[ni2] = nConv2D(ni,nj + __FILTER_STRIDE, nFilA, nBias);	// Row 2.
+				ni2++;
+			}
+			
+			// --- Max-pooling operation ---
+			nj2 = 0;
+			for (ni2 = 0; ni2 < __LAYER0_X-1; ni2 = ni2 + 2)
+			{
+				nResFlat[(nj2 + nResFlatOffset)*__LAYER0_CHANNEL + nfilter] = nMaxPool2D(nConvRes1[ni2], nConvRes1[ni2+1], nConvRes2[ni2], nConvRes2[ni2+1]);
+				nj2++;									// Next element in the flatten array.
+			}
+			nResFlatOffset = nResFlatOffset + nj2;		// Update offset index for result of flatten array.
+			nj = nj + __FILTER_STRIDE;					// Advance the vertical index 2x the stride.
+			nj = nj + __FILTER_STRIDE;					// distance.
+			
+			if (nj < (nROI_Stopy-4))					// At least 5 rows before last line as we process
+			// 5 rows of pixels at a time for stride = 2.
+			{
+				//OSSetTaskContext(ptrTask, 3, 1);			// Next state = 3, timer = 1.
+			}
+			else
+			{												// Completed the ROI.
+				PIN_FLAG4_CLEAR;							// Clear debug flag.
+				nfilter++;									// Next filter.
+				if (nfilter == __LAYER0_CHANNEL)			// Check if all convolution filters are attended to.
+				{
+					lnsTemp = 0;							// Clear the 64-bits accumulator register first.
+					ni = 0;									// Initialize index to point to 1st output of Flatten layer.
+					OSSetTaskContext(ptrTask, 4, 1);		// Next state = 4, timer = 1.
+				}
+				else
+				{
+					//OSSetTaskContext(ptrTask, 2, 1);		// Next state = 2, timer = 1.
+
+					nFilA[0] = gnL1f[nfilter][0][0];		// Get the coefficients of the filter matrix and bias.
+					nFilA[1] = gnL1f[nfilter][0][1];		// Note that the coefficients are normalized to integer
+					nFilA[2] = gnL1f[nfilter][0][2];		// between -1,000,000 to +1,000,000.
+					nFilA[3] = gnL1f[nfilter][1][0];
+					nFilA[4] = gnL1f[nfilter][1][1];
+					nFilA[5] = gnL1f[nfilter][1][2];
+					nFilA[6] = gnL1f[nfilter][2][0];
+					nFilA[7] = gnL1f[nfilter][2][1];
+					nFilA[8] = gnL1f[nfilter][2][2];
+					nBias = gnL1fbias[nfilter];
+					nResFlatOffset = 0;						// Initialize offset index for result of flatten array.
+					nj = nROI_Starty;						// Point to 1st row in ROI.
+					OSSetTaskContext(ptrTask, 3, 1);		// Next state = 3, timer = 1.
+				}
+				break;										// Quit this process.
+			}
+			
+			// 4th Cycle.
+			ni2 = 0;										// Reset index to store temporary results from
+															// 2D convolution operation.
+			// --- Conv2D operation on two consecutive rows ---
+			for (ni = nROI_Startx; ni < nROI_Stopx - (__FILTER_SIZE-1); ni = ni + __FILTER_STRIDE)
+			{
+				nConvRes1[ni2] = nConv2D(ni,nj, nFilA, nBias);						// Row 1.
+				nConvRes2[ni2] = nConv2D(ni,nj + __FILTER_STRIDE, nFilA, nBias);	// Row 2.
+				ni2++;
+			}
+			
+			// --- Max-pooling operation ---
+			nj2 = 0;
+			for (ni2 = 0; ni2 < __LAYER0_X-1; ni2 = ni2 + 2)
+			{
+				nResFlat[(nj2 + nResFlatOffset)*__LAYER0_CHANNEL + nfilter] = nMaxPool2D(nConvRes1[ni2], nConvRes1[ni2+1], nConvRes2[ni2], nConvRes2[ni2+1]);
+				nj2++;									// Next element in the flatten array.
+			}
+			nResFlatOffset = nResFlatOffset + nj2;		// Update offset index for result of flatten array.		
 			nj = nj + __FILTER_STRIDE;					// Advance the vertical index 2x the stride.
 			nj = nj + __FILTER_STRIDE;					// distance.										
 										
@@ -1041,26 +1131,83 @@ void Proce_Image4(TASK_ATTRIBUTE *ptrTask)
 				if (nfilter == __LAYER0_CHANNEL)			// Check if all convolution filters are attended to.
 				{
 					lnsTemp = 0;							// Clear the 64-bits accumulator register first.
-					nStartIndex = 0;						// Initialize start index. 
-					if (__FLATTENNODE <= __LIMIT_CNN_FLATTEN)
-					{
-						nStopIndex = __FLATTENNODE;
-					}
-					else
-					{
-						nStopIndex = __LIMIT_CNN_FLATTEN;
-					}
+					ni = 0;									// Initialize index to point to 1st output of Flatten layer. 
 					OSSetTaskContext(ptrTask, 4, 1);		// Next state = 4, timer = 1.
 				}
 				else
-				{
-					OSSetTaskContext(ptrTask, 2, 1);		// Next state = 2, timer = 1.
+				{					
+					//OSSetTaskContext(ptrTask, 2, 1);		// Next state = 2, timer = 1.
+
+					nFilA[0] = gnL1f[nfilter][0][0];		// Get the coefficients of the filter matrix and bias.
+					nFilA[1] = gnL1f[nfilter][0][1];		// Note that the coefficients are normalized to integer
+					nFilA[2] = gnL1f[nfilter][0][2];		// between -1,000,000 to +1,000,000.
+					nFilA[3] = gnL1f[nfilter][1][0];
+					nFilA[4] = gnL1f[nfilter][1][1];
+					nFilA[5] = gnL1f[nfilter][1][2];
+					nFilA[6] = gnL1f[nfilter][2][0];
+					nFilA[7] = gnL1f[nfilter][2][1];
+					nFilA[8] = gnL1f[nfilter][2][2];
+					nBias = gnL1fbias[nfilter];
+					nResFlatOffset = 0;						// Initialize offset index for result of flatten array.
+					nj = nROI_Starty;						// Point to 1st row in ROI.
+					OSSetTaskContext(ptrTask, 3, 1);		// Next state = 3, timer = 1.
 				}
 			}						
 			break;
 			
-			
 			case 4: // State 4 - Compute the output of each nodes in Layer DNN1.
+			PIN_FLAG4_SET;
+			while (nCompCount < __LIMIT_CNN_FLATTEN)	// Check if reach the BW if one Systick.
+			{
+				lnTemp2 = nResFlat[ni];					// Load and convert to 64 bits integer.
+				nTemp = gnDNN1w[ni][nNode];				// Load 32 bits integer coefficients.
+				lnsTemp = lnsTemp + (lnTemp2*nTemp);	// Multiply and accumulate.	
+														// 9 May 2020: Initially I use 64 bits integer to
+														// store both multiplicands.  I discovered that if
+														// one of the multiplicands is 32 bits integer, the
+														// execution time will be halved. If both multiplicands
+														// are 32-bits integer, then overflow occurs.							
+				ni++;									// Increment index.
+				nCompCount++;							// Increment computation counter.
+				if (ni >= __FLATTENNODE)				// Check if reach end of flatten input for current DNN1 node.
+				{
+					lnBias = gnDNN1bias[nNode];			// Note: 19 May 2020. I discovered that because gnDNN1bias[]
+														// is a 32-bits integer register, if we use
+														// gnDNN1bias[nNode]*1000000, overflow will occur. Somehow
+														// the processor stores the result in 32-bits register before
+														// converting to 64-bits long integer.  This causes overflow.
+					lnBias = lnBias*1000000;			// Thus we need to divide this into two steps.
+					lnsTemp = lnsTemp + lnBias;			// Add bias.
+					nDNN1Out[nNode] = lnsTemp/1000000;	// Scale back to 32 bits integer.
+					// ReLu activation function
+					if (nDNN1Out[nNode] < 0)
+					{
+						nDNN1Out[nNode] = 0;
+					}					
+					
+					ni = 0;								// Reset index.
+					lnsTemp = 0;						// Clear the 64-bits accumulator register first.					
+					nNode++;							// Point to next node in layer.
+					if (nNode >= __DNN1NODE)			// Check if output for all nodes in layer are computed.
+					{
+						break;
+					}
+				}
+			}
+			nCompCount = 0;								// Reset computation counter.
+			if (nNode < __DNN1NODE)						// Check for end of nodes in DNN1.
+			{		
+				OSSetTaskContext(ptrTask, 4, 1);		// Next state = 4, timer = 1.	
+			}
+			else
+			{
+				OSSetTaskContext(ptrTask, 5, 1);		// Next state = 5, timer = 1.
+			}
+			PIN_FLAG4_CLEAR;
+			break;
+			
+			/*
+			case 40: // State 4 - Compute the output of each nodes in Layer DNN1.
 			PIN_FLAG4_SET;	
 													
 			for (ni = nStartIndex; ni < nStopIndex; ni++)
@@ -1126,6 +1273,7 @@ void Proce_Image4(TASK_ATTRIBUTE *ptrTask)
 			}
 			PIN_FLAG4_CLEAR;
 			break;
+			*/
 			
 			case 5: // State 5 - Compute the output of each nodes in Layer DNN2.
 			PIN_FLAG4_SET;
@@ -1147,39 +1295,64 @@ void Proce_Image4(TASK_ATTRIBUTE *ptrTask)
 				nDNN2Out[nNode] = lnsTemp/1000000;		// Scale back to 32 bits integer.				
 			}
 			PIN_FLAG4_CLEAR;
-			//if (nNode < __DNN2NODE)
-			//{
-			//	OSSetTaskContext(ptrTask, 5, 1);	// Next state = 5, timer = 1.
-			//}
-			//else
-			//{
-			//	OSSetTaskContext(ptrTask, 1, 1);	// Next state = 1, timer = 1.
-			//}
 			
-			// --- Debug routines ---
-			gnDebug = nDNN2Out[2];
-			gnDebug2 = nDNN2Out[3];
-			//gnDebug = nDNN1Out[2];
-			//gnDebug2 = nDNN1Out[3];
-			//gnDebug = nDNN1Coeff[0];
-			//gnDebug2 = nDNN1Coeff[7];
-			//gnDebug = nResFlat[9];
-			//gnDebug2 = nResFlat[10];
-			//gnDebug = nConvRes1[11];
-			//gnDebug2 = nConvRes2[11];	
-			
-			// Check if object is detected in ROI.  The output of the output layer is Softmax, and by right
-			// the values in the output array should be converted into probability.  Here we just compare
-			// the values, larger value means higher probability.
-			if (nDNN2Out[1] > nDNN2Out[0])		// If object is present.
+			// Softmax output function
+			// In softmax, the output of each node is converted to probability.  As the output value of each
+			// node can be negative, taking the exponent of the value will convert it into a positive real
+			// value.  The exponent is then normalized to a real value between 0.0 to 1.0 by dividing it to
+			// the sum of all the exponent of each output node.  
+			// Since exponent computation takes a lot of machine cycles, here we just search for the largest
+			// value among the output of all output nodes.  Larger value correlated to higher probability.  
+			// So the largest value will be chosen as the decision by the CNN.
+			nTemp = nDNN2Out[0];			// Find the largest integer values from the output layer.
+			nObjectPresent = 0;				// by searching through all outputs.
+			if (nDNN2Out[1] > nTemp)
 			{
+				nTemp = nDNN2Out[1];
 				nObjectPresent = 1;
+			}
+			if (nDNN2Out[2] > nTemp)
+			{
+				nTemp = nDNN2Out[2];
+				nObjectPresent = 2;
+			}
+			if (nDNN2Out[3] > nTemp)
+			{
+				nObjectPresent = 3;
+			}
+			if (nDNN2Out[4] > nTemp)
+			{
+				nObjectPresent = 4;
+			}			
+			
+			if (nObjectPresent > 0)				// If object is present, show a marker.  
+			{
 				gnCameraLED = 5;				// Set camera LED intensity to high intensity.
 				gobjRec1.nColor = 2;			// Green color.
 				gobjRec1.nHeight = 6;			// Enable a square marker to be displayed in remote monitor
-				gobjRec1.nWidth = 6;			// software.
-				gobjRec1.nX = __ROI_STARTX + (__ROI_WIDTH/2) - 3;
-				gobjRec1.nY =__ROI_STARTY + (__ROI_HEIGHT/2) - 3;								
+												// software.
+				gobjRec1.nY = __ROI_STARTY + (__ROI_HEIGHT/2) - 3;	
+				if (nObjectPresent == 1)		// Left. The marker horizontal position 
+												// corresponds to the output.
+				{								// Put marker on left side of ROI.
+					gobjRec1.nX = __ROI_STARTX + (__ROI_WIDTH/6) - 3;		
+					gobjRec1.nWidth = 6;							
+				}
+				else if (nObjectPresent == 2)	// Right.
+				{								// Put marker on right side of ROI.
+					gobjRec1.nX = __ROI_STARTX + (5*__ROI_WIDTH/6) - 3;
+					gobjRec1.nWidth = 6;	
+				}
+				else  if (nObjectPresent == 3)	// Front.
+				{								// Put marker on middle of ROI.
+					gobjRec1.nX = __ROI_STARTX + (3*__ROI_WIDTH/6) - 3;
+					gobjRec1.nWidth = 6;	
+				}				
+				else  // nObjectPresent = 4.	// Blocked.
+				{								// Put marker on middle of ROI.
+					gobjRec1.nX = __ROI_STARTX + (3*__ROI_WIDTH/6) - 15;
+					gobjRec1.nWidth = 30;						
+				}		
 			}
 			else
 			{									// If object is not present.
@@ -1191,6 +1364,18 @@ void Proce_Image4(TASK_ATTRIBUTE *ptrTask)
 				gobjRec1.nWidth = 0 ;			// software.
 			}
 			
+			// --- Debug routines ---
+			//gnDebug = nDNN2Out[0];
+			gnDebug2 = nDNN2Out[1];
+			gnDebug = nObjectPresent;
+			//gnDebug2 = nDNN1Out[3];
+			//gnDebug = nDNN1Coeff[0];
+			//gnDebug2 = nDNN1Coeff[7];
+			//gnDebug = nResFlat[9];
+			//gnDebug2 = nResFlat[10];
+			//gnDebug = nConvRes1[11];
+			//gnDebug2 = nConvRes2[11];			
+			
 			if (gSCIstatus2.bTXRDY == 0)		// Check if any data to send via UART.
 			{
 				gbytTXbuffer2[0] = 4;			// Load data, process ID.
@@ -1198,7 +1383,7 @@ void Proce_Image4(TASK_ATTRIBUTE *ptrTask)
 				gbytTXbuflen2 = 2;				// Set TX frame length.
 				gSCIstatus2.bTXRDY = 1;			// Initiate TX.
 				//OSSetTaskContext(ptrTask, 6, 1*__NUM_SYSTEMTICK_MSEC);      // Next state = 6, timer = 1 msec.	
-				OSSetTaskContext(ptrTask, 6, 4);      // Next state = 6, timer = 5.	
+				OSSetTaskContext(ptrTask, 6, 3);      // Next state = 6, timer = 4.	
 			}
 			else
 			{
@@ -1236,7 +1421,7 @@ void Proce_Image4(TASK_ATTRIBUTE *ptrTask)
 // ni, nj = (x,y) coordinate of start pixel in 3x3 image patch.
 // nFilA = Address of array containing the 9 coefficients of the kernel or filter.
 // nBias = Bias value.
-int	nConv2D(int ni, int nj, int * nFilA, int nBias)
+__INLINE int	nConv2D(int ni, int nj, int * nFilA, int nBias)
 {
 	int	nLuminance[9];
 	int nTemp;
