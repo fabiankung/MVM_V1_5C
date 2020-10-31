@@ -1,0 +1,15 @@
+Create a project using Atmel Studio 7 as for the other firmware. Here an example image processing algorithm 
+that recognized pixels matching a certain color is provided, the file "User_IPA3.c". You can put all files in 
+a folder. Add all files to the Atmel Studio project, Build it and you are ready to go.  
+
+This firmware supports two resolution from the camera:
+1. QQVGA 160x120 pixels - The example image processing algorithm will be run. A black-and-white (i.e. grayscale)
+   image will be streamed to the LCD display, and pixels that matched the color range in the frame will be highlighted.
+2. QVGA 320x240 pixels - No image processing algorithm is supported as the processing does not have enough
+   bandwidth (e.g. time) to execute the codes for image processing algorithm while supporting a higher 
+   resolution.  However, the image streamed to the LCD display will be in color.
+
+NOTE: To select which resolution to use, comment or uncomment the definition for __QQVGA__ in the header file "Driver_LCD_ILI9341_V100.h"
+and rebuild the project.  When using QVGA resolution comment out the definition for __QQVGA__, also remove the file "User_IPA3.c" from
+the project in Atmel Studio 7 and rebuild.  If the file "User_IPA3.c" is not removed, the compiler will complains of multiple definitions.
+In QVGA mode no image processing algorithm will be run so the file "User_IPA3.c" is redundant.
