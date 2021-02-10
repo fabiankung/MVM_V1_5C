@@ -11,10 +11,10 @@
 //                    GCC C-Compiler
 //                    ARM CMSIS 5.0.1
 
-#include "./SAMS70_Drivers_BSP/osmain.h"
-#include "./SAMS70_Drivers_BSP/Driver_UART2_V100.h"
-#include "./SAMS70_Drivers_BSP/Driver_USART0_V100.h"
-#include "./SAMS70_Drivers_BSP/Driver_TCM8230.h"
+#include "osmain.h"
+#include "Driver_UART2_V100.h"
+#include "Driver_USART0_V100.h"
+#include "Driver_TCM8230.h"
 
 // NOTE: Public function prototypes are declared in the corresponding *.h file.
 
