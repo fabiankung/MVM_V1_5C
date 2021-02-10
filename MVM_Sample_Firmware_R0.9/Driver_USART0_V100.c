@@ -42,7 +42,8 @@ SCI_STATUS gSCIstatus2;
 //
 
 //#define	_USART_BAUDRATE_kBPS 19.2	// Default datarate in kilobits-per-second
-#define	_USART_BAUDRATE_kBPS 38.4	// Default datarate in kilobits-per-second
+//#define	_USART_BAUDRATE_kBPS 38.4	// Default datarate in kilobits-per-second
+#define _USART_BAUDRATE_KBPS 57.6	// Default datarate in kilobits-per-second
 
 ///
 /// Process name	: Proce_USART0_Driver
