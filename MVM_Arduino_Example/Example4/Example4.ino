@@ -9,8 +9,20 @@
 //               Pin 10 to MVM V1.5C TX pin
 //               Pin 11 to MVM V1.5C RX pin (via 100 to 330 Ohm series resistor).
 // Description:
-// In this example the Arduino will drive the RC motors such that the robot head will track a color 
-// object.
+// In this example the Arduino controls a robocar to move autonomously, 
+// and uses MVM firmware IPA2 to detects obstable ahead.
+// Using Software Serial in Arduino to communicate with MVM.
+
+// IMPORTANT:
+// I observed that Software Serial cannot support baud rate higher that 19200 bps
+// well on most basic Arduino boards such as UNO or Nano which uses Atmega 328P
+// running at 16 MHz clock. This could be because Software Serial routines uses
+// software approach to time the bits in each serial data packet. Thus at higher
+// baud rate such as 38400, 57600 and 115200 bps, there is high error rate when 
+// transmitting and receiving serial data using Software Serial, the MVM cannot
+// intercept the command reliably from Arduino. If this happens,
+// then revert back to hardware serial, which from experiments, can support up to
+// 115200 bps baud rate.
 
 #include <SoftwareSerial.h>
 
