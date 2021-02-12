@@ -18,6 +18,8 @@ void setup() {
   // put your setup code here, to run once:
   
   Serial.begin(57600);      // Hardware serial at 57600 bps.
+  //mySerial.begin(19200);    // Earlier versions of MVM V1.5C firmware uses lower baud rate.
+  //mySerial.begin(38400);    
   mySerial.begin(57600);    // Software serial at 57600 bps. NOTE: see comments above.
                             // If this code can't work properly, most likely is because
                             // higher baud rate is not supported well by Software serial.
