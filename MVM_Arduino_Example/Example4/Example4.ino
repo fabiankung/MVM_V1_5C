@@ -67,7 +67,7 @@ void setup() {
   mySerial.begin(19200);    // We default to lower baud rate at 19200.
   //mySerial.begin(38400);    
   //mySerial.begin(57600);  // NOTE: see comments above.
-  delay(1000);          // A 1000 ms delay for the module to initialize properly.
+  delay(2000);          // A 2000 ms delay for the module to initialize properly.
   mySerial.write(0x20);   // Run IPA (image processing algorithm) 2 on interval 1. Obstacle detection.
   mySerial.write(0x20);   // Run IPA 2 on interval 2.
   nHeadAzimuthAngle_Deg = 74;    // Drive azimuth and elevation motors to initial position.
