@@ -1,7 +1,7 @@
 void setup() {
   // put your setup code here, to run once:
-  Serial.begin(57600);
-  delay(500);           // A 500 ms delay for the module to initialize properly.
+  Serial.begin(19200);
+  delay(1000);          // A 1000 ms delay for the module to initialize properly.
   Serial.write(0x10);   // Run IPA (image processing algorithm) 1 on interval 1.
   Serial.write(0x20);   // Run IPA 2 on interval 2.
 }
