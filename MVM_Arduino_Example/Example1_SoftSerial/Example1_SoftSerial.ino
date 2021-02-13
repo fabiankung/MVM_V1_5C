@@ -6,9 +6,10 @@
 // software approach to time the bits in each serial data packet. Thus at higher
 // baud rate such as 38400, 57600 and 115200 bps, there is high error rate when 
 // transmitting and receiving serial data using Software Serial, the MVM cannot
-// intercept the command reliably from Arduino. If this happens,
-// then revert back to hardware serial, which from experiments, can support up to
-// 115200 bps baud rate.
+// intercept the command reliably from Arduino. If this happens, we can revert
+// back to hardware serial, which from experiments, can support up to
+// 115200 bps baud rate, or use 19200 bps. Thus in the codes below mySerial 
+// defaults to 19200 bps upon initialization. 
  
 #include <SoftwareSerial.h>
 
@@ -18,14 +19,10 @@ void setup() {
   // put your setup code here, to run once:
   
   Serial.begin(57600);      // Hardware serial at 57600 bps.
-  //mySerial.begin(19200);    // Earlier versions of MVM V1.5C firmware uses lower baud rate.
+  mySerial.begin(19200);    // We default to lower baud rate at 19200.
   //mySerial.begin(38400);    
-  mySerial.begin(57600);    // Software serial at 57600 bps. NOTE: see comments above.
-                            // If this code can't work properly, most likely is because
-                            // higher baud rate is not supported well by Software serial.
-                            // In this case please revert back to using hardware serial
-                            // port to commnicate with MVM V1.5C. This means we can no
-                            // longer send data to Serial Monitor.
+  //mySerial.begin(57600);  // NOTE: see comments above.
+                            
   delay(2000);              // A long ms delay for MVM to initialize properly.
   //mySerial.write(0x30);     // Run IPA (image processing algorithm) 3 on interval 1.
   //mySerial.write(0x30);     // Run IPA 3 on interval 2.
