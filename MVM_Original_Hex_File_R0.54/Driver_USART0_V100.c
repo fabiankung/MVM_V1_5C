@@ -38,9 +38,9 @@ SCI_STATUS gSCIstatus2;
 // --- Process Level Constants Definition --- 
 //
 
-//#define	_USART_BAUDRATE_kBPS 19.2	// Default datarate in kilobits-per-second
+#define	_USART_BAUDRATE_kBPS 19.2	// Default datarate in kilobits-per-second
 //#define	_USART_BAUDRATE_kBPS 38.4	// Default datarate in kilobits-per-second
-#define _USART_BAUDRATE_kBPS 57.6		// Default datarate in kilobits-per-second
+//#define _USART_BAUDRATE_kBPS 57.6		// Default datarate in kilobits-per-second
 //#define _USART_BAUDRATE_kBPS 115.2		// Default datarate in kilobits-per-second
 
 ///
