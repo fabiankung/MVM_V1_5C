@@ -1,5 +1,5 @@
 /// Author			: Fabian Kung
-/// Date			: 27 June 2018
+/// Date			: 2 Dec 2021
 /// Filename		: osmain.h
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -48,7 +48,8 @@
 //#define __SYSTICKCOUNT          25000			// This will give SysTick timeout of 166.67 usec, for UART2 baud = 57.6 kbps or lower.
 //#define __SYSTICKCOUNT          8334			// This will give SysTick timeout of 55.56 usec, suitable for UART2 baud = 115.2 kbps.
 //#define __SYSTICKCOUNT          6250			// This will give SysTick timeout of 41.67 usec, suitable for UART2 baud = 230.4 kbps.										
-#define __SYSTICKCOUNT          4168			// This will give SysTick timeout of 27.78 usec, suitable for UART2 baud = 345.6 kbps.
+#define __SYSTICKCOUNT          4167			// This will give SysTick timeout of 27.78 usec, suitable for UART2 baud = 345.6 kbps.
+//#define __SYSTICKCOUNT          3126			// This will give SysTick timeout of 20.83 usec, suitable for UART2 baud = 460.8 kbps.
 
 #define	__SYSTEMTICK_US         166.67          // System_Tick = [_SYSTICKCOUNT x Tclk_US x 2]x3
 									
@@ -66,10 +67,10 @@
 #define	__MAXTASK				12			// Maximum no. of concurrent tasks supported.
 
 #define __SCI_TXBUF_LENGTH      200			// SCI transmit  buffer length in bytes.
-#define __SCI_RXBUF_LENGTH      8			// SCI receive  buffer length in bytes.
+#define __SCI_RXBUF_LENGTH      32			// SCI receive  buffer length in bytes.
 
-#define __SCI_TXBUF2_LENGTH      8			// SCI transmit  buffer2 length in bytes.
-#define __SCI_RXBUF2_LENGTH      8			// SCI receive  buffer2 length in bytes.
+#define __SCI_TXBUF2_LENGTH      16			// SCI transmit  buffer2 length in bytes.
+#define __SCI_RXBUF2_LENGTH      16			// SCI receive  buffer2 length in bytes.
 
 // --- RTOS DATATYPES DECLARATIONS ---
 // Type cast for a structure defining the attributes of a task,

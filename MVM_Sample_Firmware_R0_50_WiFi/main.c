@@ -156,6 +156,7 @@ int main(void)
 		//if (gnRunTask == 3) 						// For SysTick timeout of 55.56 usec, UART2 baud = 115.2 kbps.
 		//if (gnRunTask == 4)							// For SysTick timeout of 41.67 usec, UART2 baud = 230.4 kbps.
 		if (gnRunTask == 6)							// For SysTick timeout of 27.78 usec, UART2 baud = 345.6 kbps.
+		//if (gnRunTask == 8)							// For SysTick timeout of 20.83 usec, UART2 baud = 460.8 kbps.
 		{			
 			//PIOD->PIO_ODSR |= PIO_ODSR_P22;		// Set PD22.
 			for (ni = 0; ni < gnTaskCount; ni++)	// Using for-loop produce more efficient
