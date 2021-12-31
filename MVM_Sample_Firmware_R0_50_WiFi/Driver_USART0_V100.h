@@ -1,5 +1,5 @@
 // Author			: Fabian Kung
-// Date				: 11 July 2018
+// Date				: 18 Dec 2021
 // Filename			: Driver_USART_V100.h
 
 #ifndef _DRIVER_USART_SAMS70_H
@@ -14,8 +14,8 @@
 // --- PUBLIC VARIABLES ---
 //
 
-#define __SCI_TXBUF2_LENGTH      8			// SCI transmit  buffer2 length in bytes.
-#define __SCI_RXBUF2_LENGTH      8			// SCI receive  buffer2 length in bytes.		
+#define __SCI_TXBUF2_LENGTH      16			// SCI transmit  buffer2 length in bytes.
+#define __SCI_RXBUF2_LENGTH      16			// SCI receive  buffer2 length in bytes.		
 		
 // Data buffer and address pointers for wired serial communications.
 extern uint8_t gbytTXbuffer2[__SCI_TXBUF2_LENGTH-1];

@@ -9,7 +9,7 @@
 //
 // File				: Drivers_UART_V100.c
 // Author(s)		: Fabian Kung
-// Last modified	: 25 Nov 2021
+// Last modified	: 10 Dec 2021
 // Toolsuites		: Atmel Studio 7.0 or later
 //					  GCC C-Compiler
 //					  ARM CMSIS 5.4.0		
@@ -52,9 +52,9 @@ void SendATCommandESP8266(unsigned char *);
 ///
 /// Author			: Fabian Kung
 ///
-/// Last modified	: 25 Nov 2021
+/// Last modified	: 10 Dec 2021
 ///
-/// Code version	: 0.63
+/// Code version	: 0.64
 ///
 /// Processor		: ARM Cortex-M7 family                   
 ///
@@ -113,6 +113,8 @@ void Proce_ESP8266_Driver(TASK_ATTRIBUTE *ptrTask)
 				nLineCounter = 0;												// Reset pixel line counter.
 				OSSetTaskContext(ptrTask, 1, 1000*__NUM_SYSTEMTICK_MSEC);		// Next state = 1, timer = 1000msec.
 				//OSSetTaskContext(ptrTask, 101, 1000*__NUM_SYSTEMTICK_MSEC);		// Next state = 101, timer = 1000msec.
+				//OSSetTaskContext(ptrTask, 102, 1000*__NUM_SYSTEMTICK_MSEC);		// Next state = 102, timer = 1000msec.
+				//OSSetTaskContext(ptrTask, 103, 5000*__NUM_SYSTEMTICK_MSEC);		// Next state = 103, timer = 5000msec.
 			break;
 			
 			case 1: // State 1 - Setup ESP8266 Module, check if ESP8266 is present.
@@ -156,7 +158,7 @@ void Proce_ESP8266_Driver(TASK_ATTRIBUTE *ptrTask)
 			case 8: // State 8 - Get default IP address of ESP8266 softAP.
 			    // default IP: 192.168.4.1
 				SendATCommandESP8266("AT+CIFSR");																	
-				OSSetTaskContext(ptrTask, 9, 1000*__NUM_SYSTEMTICK_MSEC);	// Next state = 9, timer = 1000msec.
+				OSSetTaskContext(ptrTask, 9, 1250*__NUM_SYSTEMTICK_MSEC);	// Next state = 9, timer = 1250msec.
 			break;		
 			
 			case 9: // State 9 - Switch off AT command echoing. Hopefully this will speed up the bilateral communication.
@@ -167,8 +169,8 @@ void Proce_ESP8266_Driver(TASK_ATTRIBUTE *ptrTask)
 			case 20: // State 20 - Indicate ESP8266 module is ready.
 				gnESP8266Flag = 0;												// Clear activity flag first.
 				UART2->UART_CMPR = 0;											// Reset comparison control register 1st.
-				UART2->UART_CMPR = UART_CMPR_CMPMODE_FLAG_ONLY | UART_CMPR_VAL1('X') //  
-								| UART_CMPR_VAL2('X');							// Enable comparison function in UART2.
+				UART2->UART_CMPR = UART_CMPR_CMPMODE_FLAG_ONLY | UART_CMPR_VAL1('X') // Enable comparison function in UART2.
+								| UART_CMPR_VAL2('X');							// Compare with character 'X'.
 				OSSetTaskContext(ptrTask, 21, 10*__NUM_SYSTEMTICK_MSEC);		// Next state = 21, timer = 10 msec .
 			break;
 			
@@ -179,8 +181,8 @@ void Proce_ESP8266_Driver(TASK_ATTRIBUTE *ptrTask)
 					UART2->UART_CR = UART2->UART_CR | UART_CR_RSTSTA;			// Clear CMP flag.
 					gnESP8266Flag = 1;	
 					UART2->UART_CMPR = 0;	// Reset comparison control register.
-					UART2->UART_CMPR = UART_CMPR_CMPMODE_FLAG_ONLY | UART_CMPR_VAL1('>')	//
-									   | UART_CMPR_VAL2('>');								// Enable comparison function in UART2.		
+					UART2->UART_CMPR = UART_CMPR_CMPMODE_FLAG_ONLY | UART_CMPR_VAL1('>')	// Enable comparison function in UART2.
+									   | UART_CMPR_VAL2('>');								// Compare with character '>'.	
 					OSSetTaskContext(ptrTask, 22, 1);							// Next state = 22, timer = 1.				
 				}	
 				else
@@ -196,8 +198,8 @@ void Proce_ESP8266_Driver(TASK_ATTRIBUTE *ptrTask)
 					UART2->UART_CR = UART2->UART_CR | UART_CR_RSTSTA;			// Clear CMP flag.
 					gnESP8266Flag = 2;
 					UART2->UART_CMPR = 0;											// Reset comparison control register 1st.
-					UART2->UART_CMPR = UART_CMPR_CMPMODE_FLAG_ONLY | UART_CMPR_VAL1('X') //
-					| UART_CMPR_VAL2('X');										// Enable comparison function in UART2.				
+					UART2->UART_CMPR = UART_CMPR_CMPMODE_FLAG_ONLY | UART_CMPR_VAL1('X') // Enable comparison function in UART2.	
+					| UART_CMPR_VAL2('X');										// Compare with character 'X'.				
 					OSSetTaskContext(ptrTask, 21, 1);							// Next state = 21, timer = 1.
 				}
 				else
@@ -210,12 +212,39 @@ void Proce_ESP8266_Driver(TASK_ATTRIBUTE *ptrTask)
 				OSSetTaskContext(ptrTask, 100, 1000*__NUM_SYSTEMTICK_MSEC);		// Next state = 100, timer = 1000msec.
 			break;
 			
-			case 101: // State 101 - Test USART0.
+			case 101: // State 101 - Test USART0, no DMA.
 				gbytTXbuffer2[0] = 'A';
 				gbytTXbuffer2[1] = 'B';	
 				gbytTXbuflen2 = 2;			// Set USART0 TX frame length.
 				gSCIstatus2.bTXRDY = 1;		// Initiate TX.
 				OSSetTaskContext(ptrTask, 101, 1000*__NUM_SYSTEMTICK_MSEC);		// Next state = 101, timer = 1000msec.
+			break;
+			
+			case 102: // State 102 - Test USART0 using DMA.
+				if (gSCIstatus2.bTXRDY == 0)
+				{
+					SCB_CleanDCache();		// If we are using data cache (D-Cache), we should clean the data cache
+					// (D-Cache) before enabling the DMA. Otherwise when XDMAC access data
+					// from the cache, it may not contains the correct and up-to-date data.
+					gbytTXbuffer2[0] = 'H';
+					gbytTXbuffer2[1] = 'e';
+					gbytTXbuffer2[2] = 'l';
+					gbytTXbuffer2[3] = 'l';
+					gbytTXbuffer2[4] = 'o';
+					gbytTXbuffer2[5] = '\n';
+					XDMAC->XDMAC_CHID[2].XDMAC_CSA = (uint32_t) gbytTXbuffer2;	// Set source start address.
+					XDMAC->XDMAC_CHID[2].XDMAC_CUBC = XDMAC_CUBC_UBLEN(6);		// Set number of bytes to transmit.
+					XDMAC->XDMAC_GE = XDMAC_GE_EN2;								// Enable channel 2 of XDMAC.
+					gSCIstatus2.bTXDMAEN = 1;									// Indicate USART0 transmit with DMA.
+					gSCIstatus2.bTXRDY = 1;										// Initiate TX.
+					PIN_LED2_SET;												// Lights up indicator LED2.
+				}
+				OSSetTaskContext(ptrTask, 102, 100*__NUM_SYSTEMTICK_MSEC);		// Next state = 102, timer = 100msec.	
+			break;
+			
+			case 103: // State 103 - Change the default baud rate in ESP8266 module.
+				SendATCommandESP8266("AT+UART_DEF=230400,8,1,0,0");
+				OSSetTaskContext(ptrTask, 100, 1000*__NUM_SYSTEMTICK_MSEC);		// Next state = 100, timer = 100msec.	
 			break;
 			
 			default:
@@ -240,6 +269,9 @@ void SendATCommandESP8266(unsigned char *strCommand)
 	XDMAC->XDMAC_CHID[1].XDMAC_CSA = (uint32_t) gbytTXbuffer;	// Set source start address.
 	XDMAC->XDMAC_CHID[1].XDMAC_CUBC = XDMAC_CUBC_UBLEN(nCommLen+2);		// Set number of bytes to transmit.
 	XDMAC->XDMAC_GE = XDMAC_GE_EN1;								// Enable channel 1 of XDMAC.
+	//SCB_InvalidateDCache();										// Mark the data cache as invalid. Subsequent read from DCache forces data to be copied from SRAM to
+																// the cache.  This is to be used after XDMAC updates the SRAM without the knowledge of the CPU's cache
+																// controller.
 	gSCIstatus.bTXDMAEN = 1;									// Indicate UART transmit with DMA.
 	gSCIstatus.bTXRDY = 1;										// Initiate TX.
 	PIN_LED2_SET;												// Lights up indicator LED2.	

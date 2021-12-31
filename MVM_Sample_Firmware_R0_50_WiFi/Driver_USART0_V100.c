@@ -2,20 +2,20 @@
 //
 //	USER DRIVER ROUTINES DECLARATION (PROCESSOR DEPENDENT)
 //
-//  (c) Copyright 2015-2018, Fabian Kung Wai Lee, Selangor, MALAYSIA
+//  (c) Copyright 2018-2021, Fabian Kung Wai Lee, Selangor, MALAYSIA
 //  All Rights Reserved  
 //   
 //////////////////////////////////////////////////////////////////////////////////////////////
 //
 // File				: Drivers_USART0_V100.c
 // Author(s)		: Fabian Kung
-// Last modified	: 15 August 2020
+// Last modified	: 18 Dec 2021
 // Toolsuites		: Atmel Studio 7.0 or later
 //					  GCC C-Compiler
-//					  ARM CMSIS 5.0.1	
+//					  ARM CMSIS 5.4.0	
 
 #include "osmain.h"
-
+#include "Driver_USART0_V100.h"
 
 // NOTE: Public function prototypes are declared in the corresponding *.h file.
 
@@ -54,9 +54,9 @@ SCI_STATUS gSCIstatus2;
 ///
 /// Author			: Fabian Kung
 ///
-/// Last modified	: 11 July 2018
+/// Last modified	: 8 Dec 2021
 ///
-/// Code version	: 1.00
+/// Code version	: 1.10
 ///
 /// Processor		: ARM Cortex-M4 family                   
 ///
@@ -69,12 +69,12 @@ SCI_STATUS gSCIstatus2;
 ///
 /// RTOS		: Ver 1 or above, round-robin scheduling.
 ///
-/// Global variable	: gbytRX2buffer[]
-///                   gbytRX2bufptr
-///                   gbytTX2buffer[]
-///                   gbytTX2bufptr
-///                   gbytTX2buflen
-///                   gSCI2status
+/// Global variable	: gbytRXbuffer2[]
+///                   gbytRXbufptr2
+///                   gbytTXbuffer2[]
+///                   gbytTXbufptr2
+///                   gbytTXbuflen2
+///                   gSCIstatus2
 ///
 
 #ifdef 				  __OS_VER		// Check RTOS version compatibility.
@@ -137,6 +137,8 @@ SCI_STATUS gSCIstatus2;
 
 void Proce_USART0_Driver(TASK_ATTRIBUTE *ptrTask)
 {
+	int nTemp;
+	int ni;
 
 	if (ptrTask->nTimer == 0)
 	{
@@ -199,34 +201,87 @@ void Proce_USART0_Driver(TASK_ATTRIBUTE *ptrTask)
 				OSSetTaskContext(ptrTask, 1, 100);				// Next state = 1, timer = 100.
 			break;
 			
-			case 1: // State 1 - Transmit and receive buffer manager.
+			case 1: // State 1 - Initialization of XDMAC Channel 2, map to USART0 TX holding buffer.
+			// Setup XDMAC Channel 2 to handle transfer of data from SRAM to USART0 US_THR (Transmit holding register).
+			// For more info see Atmel Application Note 42761A - 2016. Here's how it works:
+			//
+			// Memory (micro-block size) -> Peripheral (in chunk)
+			//
+			// Channel allocation: 2.
+			// Source: SRAM.
+			// Destination:  USART0 TX (XDMAC_CC.PERID = 7).
+			// Transfer mode (TYPE): Single block with single micro-block. (BLEN = 0)
+			// Memory burst size (MBSIZE): 1
+			// Chunk size (CSIZE): 1 chunks
+			// Channel data width (DWIDTH): byte.
+			// Source address mode (SAM): increment.
+			// Destination address mode (DAM): fixed.
 			
-/* This is shifted to Systick interrupt service routine, see SysTick_Handler(void). 						
+				nTemp = XDMAC->XDMAC_CHID[2].XDMAC_CIS;			// Clear channel 2 interrupt status register.  This is a read-only register, reading it will clear all
+																// interrupt flags.
+				XDMAC->XDMAC_CHID[2].XDMAC_CSA = (uint32_t) gbytTXbuffer2;	// Set source start address.
+				XDMAC->XDMAC_CHID[2].XDMAC_CDA = (uint32_t) &(USART0->US_THR);	// Set destination start address.
+
+				XDMAC->XDMAC_CHID[2].XDMAC_CUBC = XDMAC_CUBC_UBLEN(1);	// Set the number of data chunks in a micro-block, default.  User
+																		// to modify later.
+				XDMAC->XDMAC_CHID[2].XDMAC_CC = XDMAC_CC_TYPE_PER_TRAN|	// Peripheral synchronized mode.
+				XDMAC_CC_CSIZE_CHK_1|						// Chunk size in terms of data unit, 1 byte, halfword (16-bits) or word (32-bits). 
+															// For USART0 since US_THR is 1 byte deep, we set chunk size to 1.
+				XDMAC_CC_MBSIZE_SINGLE|						// Memory burst size, , not used in memory-to-peripheral transfer.
+				XDMAC_CC_DSYNC_MEM2PER|						// Memory to peripheral.
+				XDMAC_CC_DWIDTH_BYTE|						// Data unit size = byte.
+				XDMAC_CC_SIF_AHB_IF0|						// Data is read through this AHB Master interface, connects to SRAM.
+				XDMAC_CC_DIF_AHB_IF1|						// Data is write through this AHB Master interface, connects to peripheral bus.
+				XDMAC_CC_SAM_INCREMENTED_AM|				// Source address, automatic increment.
+				XDMAC_CC_DAM_FIXED_AM|						// Destination address, fixed. For TX we increment the source address.
+				XDMAC_CC_SWREQ_HWR_CONNECTED|	// Hardware request line is connected to the peripheral request line, i.e. peripheral trigger the DMA transfer.
+				XDMAC_CC_PERID(7);				// Connect to USART0 TX.  See datasheet.
+			
+				XDMAC->XDMAC_CHID[2].XDMAC_CNDC = 0;		// Next descriptor control register.
+				XDMAC->XDMAC_CHID[2].XDMAC_CBC = 0;			// Block control register.
+				XDMAC->XDMAC_CHID[2].XDMAC_CDS_MSP = 0;		// Data stride memory set pattern register.
+				XDMAC->XDMAC_CHID[2].XDMAC_CSUS = 0;		// Source microblock stride register.
+				XDMAC->XDMAC_CHID[2].XDMAC_CDUS = 0;		// Destination microblock stride register.
+			
+				OSSetTaskContext(ptrTask, 2, 1);			// Next state = 2, timer = 1.
+			break;
+			
+			case 2: // State 2 - Transmit and receive buffer manager.
+	
 				// Check for data to send via USART.
-				// Note that the transmit buffer is only 2-level deep in ARM Cortex-M4 micro-controllers.
+				// Note that the transmit buffer is only 2-level deep in ARM Cortex-M4 micro-controllers.				
 				if (gSCIstatus2.bTXRDY == 1)					// Check if valid data in SCI buffer.
 				{
-					
-					while ((USART0->US_CSR & US_CSR_TXRDY) > 0)	// Check if USART transmit holding buffer is not full.
+					if (gSCIstatus2.bTXDMAEN == 0)				// Transmit without DMA.
 					{
-						PIN_LED2_SET;							// On indicator LED2.
-						if (gbytTXbufptr2 < gbytTXbuflen2)		// Make sure we haven't reach end of valid data to transmit. 
+						while ((USART0->US_CSR & US_CSR_TXRDY) > 0)	// Check if USART transmit holding buffer is not full.
 						{
-							USART0->US_THR = gbytTXbuffer2[gbytTXbufptr2];	// Load 1 byte data to USART transmit holding buffer.
-							gbytTXbufptr2++;                    // Pointer to next byte in TX buffer.
-						}
-						else                                    // End of data to transmit.
+							PIN_LED2_SET;						// On indicator LED2.
+							if (gbytTXbufptr2 < gbytTXbuflen2)	// Make sure we haven't reach end of valid data to transmit.
+							{
+								USART0->US_THR = gbytTXbuffer2[gbytTXbufptr2];	// Load 1 byte data to USART transmit holding buffer.
+								gbytTXbufptr2++;                // Pointer to next byte in TX buffer.
+							}
+							else                                // End of data to transmit.
+							{
+								gbytTXbufptr2 = 0;              // Reset TX buffer pointer.
+								gbytTXbuflen2 = 0;              // Reset TX buffer length.
+								gSCIstatus2.bTXRDY = 0;         // Reset transmit flag.
+								PIN_LED2_CLEAR;                 // Off indicator LED2.
+								break;
+							} // if (gbytTXbufptr2 < gbytTXbuflen2)
+						} // while ((USART0->US_CSR & US_CSR_TXRDY) > 0)
+					} // if (gSCIstatus2.bTXDMAEN == 0)
+					else										// Transmit with DMA.
+					{
+						if ((XDMAC->XDMAC_GS & XDMAC_GS_ST2_Msk) == 0)	// Check if DMA Channel 2 (USART0 TX) transmit is completed.
 						{
-							gbytTXbufptr2 = 0;                  // Reset TX buffer pointer.
-							gbytTXbuflen2 = 0;                  // Reset TX buffer length.
-							gSCIstatus2.bTXRDY = 0;             // Reset transmit flag.
-							PIN_LED2_CLEAR;                     // Off indicator LED2.
-							break;
+							gSCIstatus2.bTXRDY = 0;				// Reset transmit flag.
+							PIN_LED2_CLEAR;						// Off indicator LED2.
 						}
 					}
 				}
-*/
-				
+										
 				// Check for data to receive via USART.
 				// Note that the receive FIFO buffer is only 2-level deep in ARM Cortex-M4 micro-controllers.
                 // Here we ignore Parity error.  If overflow or framing error is detected, we need to write a 1 
@@ -262,8 +317,7 @@ void Proce_USART0_Driver(TASK_ATTRIBUTE *ptrTask)
 					PIN_LED2_CLEAR;
                 } 
 				
-				OSSetTaskContext(ptrTask, 1, 1); // Next state = 1, timer = 1.
-				//OSSetTaskContext(ptrTask, 1, 10*__NUM_SYSTEMTICK_MSEC); // Next state = 1, timer = 1.
+				OSSetTaskContext(ptrTask, 2, 1); // Next state = 2, timer = 1.
 			break;
 
 			default:

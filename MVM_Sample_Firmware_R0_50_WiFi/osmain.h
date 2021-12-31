@@ -1,5 +1,5 @@
 /// Author			: Fabian Kung
-/// Date			: 2 Dec 2021
+/// Date			: 18 Dec 2021
 /// Filename		: osmain.h
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -68,9 +68,6 @@
 
 #define __SCI_TXBUF_LENGTH      200			// SCI transmit  buffer length in bytes.
 #define __SCI_RXBUF_LENGTH      32			// SCI receive  buffer length in bytes.
-
-#define __SCI_TXBUF2_LENGTH      16			// SCI transmit  buffer2 length in bytes.
-#define __SCI_RXBUF2_LENGTH      16			// SCI receive  buffer2 length in bytes.
 
 // --- RTOS DATATYPES DECLARATIONS ---
 // Type cast for a structure defining the attributes of a task,
@@ -146,5 +143,4 @@ extern TASK_POINTER gfptrTask[__MAXTASK-1];
 extern SCI_STATUS gSCIstatus;
 
 // Note: The followings is defined in file "main.c"
-extern int gnRunImage;
 #endif

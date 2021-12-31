@@ -227,6 +227,7 @@ void SAMS70_Init()
 	// Enable the Cortex-M7 Cache Controller for instruction and data caches.
 	SCB_EnableICache();		// Invalidate then re-enable the instruction cache.
 	SCB_EnableDCache();		// Invalidate then re-enable the data cache.
+	
 }
 
 // Function name	: OSEnterCritical

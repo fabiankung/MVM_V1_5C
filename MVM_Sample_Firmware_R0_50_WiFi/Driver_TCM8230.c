@@ -3,7 +3,7 @@
 //
 // File				: Drivers_TCM8230.c
 // Author(s)		: Fabian Kung
-// Last modified	: 25 May 2020
+// Last modified	: 18 Dec 2021
 // Tool-suites		: Atmel Studio 7.0 or later
 //                    GCC C-Compiler
 //                    ARM CMSIS 5.4.0
@@ -103,9 +103,9 @@ __STATIC_FORCEINLINE uint16_t _REV16 (uint16_t op1)
 ///
 /// Author				: Fabian Kung
 ///
-/// Last modified		: 25 May 2020
+/// Last modified		: 18 Dec 2021
 ///
-/// Code Version		: 0.94
+/// Code Version		: 0.945
 ///
 /// Processor			: ARM Cortex-M7 family
 ///
@@ -225,39 +225,45 @@ void Proce_TCM8230_Driver(TASK_ATTRIBUTE *ptrTask)
 				 PIOA->PIO_PCIDR = PIOA->PIO_PCIDR | PIO_PCISR_DRDY | PIO_PCIDR_ENDRX | PIO_PCIDR_DRDY | PIO_PCIDR_RXBUFF | PIO_PCIDR_OVRE; // Disable all PCM interrupts.
 				
 				// Setup XDMAC Channel to handle transfer of data from parallel capture buffer to memory.
+				// For more info see Atmel Application Note 42761A - 2016.
 				// Channel allocation: 0.
 				// Source: PIOA (XDMAC_CC.PERID = 34).
 				// Destination: SRAM.
-				// Transfer mode (TYPE): Single block with single microblock. (BLEN = 0)
+				// Transfer mode (TYPE): Single block with single micro-block. (BLEN = 0)
 				// Chunk size (CSIZE): 1 chunks
 				// Memory burst size (MBSIZE): 4
 				// Channel data width (DWIDTH): halfword.
 				// Source address mode (SAM): fixed.
-				// Destination addres mode (DAM): increment.
+				// Destination address mode (DAM): increment.
 				//
-				// For peripheral to memory transfer, each microblock transfer is further divided into 'Chunks'.
+				// For peripheral to memory transfer, each micro-block transfer is further divided into 'Chunks'. Here's how it works:
+				//
+				// Peripheral (in chunk) -> XDMAC internal FIFO (in memory burst size) -> Memory (micro-block size)
+				//
 				// The datasheet did not explain clearly the size of each chunk, I would understand it as the smallest unit of data transfer 
 				// from the peripheral as set in DWIDTH in XDMAC_CC register i.e. if the smallest data unit for the peripheral is byte, 
 				// then 1 chunk = 1 byte.  If the smallest data unit from the peripheral is a 16-bits half word, then 1 chunk = 1 half word. 
 				// Here we will use maximum of 16 chunks per burst.  Note that the
-				// number of burst should be an integral number of the microblock length.
+				// number of burst should be an integral number of the micro-block length.
 				// 
 				nTemp = XDMAC->XDMAC_CHID[0].XDMAC_CIS;			// Clear channel 0 interrupt status register.  This is a read-only register, reading it will clear all
 																// interrupt flags.
 				XDMAC->XDMAC_CHID[0].XDMAC_CSA = (uint32_t)&(PIOA->PIO_PCRHR);	// Set source start address.
 				XDMAC->XDMAC_CHID[0].XDMAC_CDA = (uint32_t) gn16Pixel;	// Set destination start address.
-				XDMAC->XDMAC_CHID[0].XDMAC_CUBC = XDMAC_CUBC_UBLEN(gnImageWidth); // Set the number of data chunks in a microblock.
-				XDMAC->XDMAC_CHID[0].XDMAC_CC = XDMAC_CC_TYPE_PER_TRAN| 
-												XDMAC_CC_CSIZE_CHK_1| 
-												XDMAC_CC_MBSIZE_FOUR| 
+				XDMAC->XDMAC_CHID[0].XDMAC_CUBC = XDMAC_CUBC_UBLEN(gnImageWidth); // Set the number of data chunks in a micro-block.
+				XDMAC->XDMAC_CHID[0].XDMAC_CC = XDMAC_CC_TYPE_PER_TRAN|		// Channel Configuration register.
+												XDMAC_CC_CSIZE_CHK_1|		// Since PIO_PCRHR is only 1 word deep, we set chunk size to 1.
+												XDMAC_CC_MBSIZE_SIXTEEN|	// NOTE: [micro-block size]/[Memory burst size] -> integer.
+																			// Memory burst size. XDMAC_CUBC_UBLEN/(Memory burst size) should be an integer.
+																			// Larger memory burst size leads to better performance of DMA.
 												XDMAC_CC_DWIDTH_HALFWORD|
-												XDMAC_CC_SAM_FIXED_AM| 
-												XDMAC_CC_DAM_INCREMENTED_AM|
+												XDMAC_CC_SAM_FIXED_AM|		// Source address fixed.
+												XDMAC_CC_DAM_INCREMENTED_AM|	// Destination address, automatic increment.
 												XDMAC_CC_SIF_AHB_IF1|		// IF1 is Master AHB 5, connected to peripheral bus.
 												XDMAC_CC_DIF_AHB_IF0|		// IF0 is Master AHB 4, connected to internal SRAM.
-												XDMAC_CC_DSYNC_PER2MEM|
+												XDMAC_CC_DSYNC_PER2MEM|		// Direction, peripheral-to-memory.
 												XDMAC_CC_SWREQ_HWR_CONNECTED|
-												XDMAC_CC_PERID(34); 
+												XDMAC_CC_PERID(34);			// Connect to PIOA, see datasheet.
 				
 				XDMAC->XDMAC_CHID[0].XDMAC_CNDC = 0;		// Next descriptor control register.
 				XDMAC->XDMAC_CHID[0].XDMAC_CBC = 0;			// Block control register.

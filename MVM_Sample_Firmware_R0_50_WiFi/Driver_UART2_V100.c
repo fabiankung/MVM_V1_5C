@@ -43,8 +43,8 @@ uint8_t gbytRXbufptr;                             // Receive buffer length point
 //#define	_UART_BAUDRATE_kBPS	9.6	// Default datarate in kilobits-per-second, for HC-05 module.
 //#define	_UART_BAUDRATE_kBPS 38.4	// Default datarate in kilobits-per-second for HC-05 module in AT mode.
 //#define	_UART_BAUDRATE_kBPS 115.2	// Default datarate in kilobits-per-second
-//#define	_UART_BAUDRATE_kBPS 230.4	// Default datarate in kilobits-per-second
-#define	_UART_BAUDRATE_kBPS 345.6	// Default datarate in kilobits-per-second
+#define	_UART_BAUDRATE_kBPS 230.4	// Default datarate in kilobits-per-second
+//#define	_UART_BAUDRATE_kBPS 345.6	// Default datarate in kilobits-per-second
 //#define	_UART_BAUDRATE_kBPS 460.8	// Default datarate in kilobits-per-second, note: this is not reliable as the timing is out.
 
 ///
@@ -229,10 +229,14 @@ void Proce_UART2_Driver(TASK_ATTRIBUTE *ptrTask)
 			
 			case 1: // State 1 - Initialization of XDMAC Channel 1, map to UART2 TX holding buffer.
 					// Setup XDMAC Channel 1 to handle transfer of data from SRAM to UART_THR.
+					// For more info see Atmel Application Note 42761A - 2016. Here's how it works:
+					//
+					// Memory (micro-block size) -> Peripheral (in chunk) 
+					//					
 					// Channel allocation: 1.
 					// Source: SRAM.
 					// Destination:  UART2 TX (XDMAC_CC.PERID = 24).
-					// Transfer mode (TYPE): Single block with single microblock. (BLEN = 0)
+					// Transfer mode (TYPE): Single block with single micro-block. (BLEN = 0)
 					// Memory burst size (MBSIZE): 1
 					// Chunk size (CSIZE): 1 chunks
 					// Channel data width (DWIDTH): byte.
@@ -244,19 +248,20 @@ void Proce_UART2_Driver(TASK_ATTRIBUTE *ptrTask)
 				XDMAC->XDMAC_CHID[1].XDMAC_CSA = (uint32_t) gbytTXbuffer;	// Set source start address.
 				XDMAC->XDMAC_CHID[1].XDMAC_CDA = (uint32_t) &(UART2->UART_THR);	// Set destination start address.
 
-				XDMAC->XDMAC_CHID[1].XDMAC_CUBC = XDMAC_CUBC_UBLEN(1);	// Set the number of data chunks in a microblock, default.  User
+				XDMAC->XDMAC_CHID[1].XDMAC_CUBC = XDMAC_CUBC_UBLEN(1);	// Set the number of data chunks in a micro-block, default.  User
 																		// to modify later.
 				XDMAC->XDMAC_CHID[1].XDMAC_CC = XDMAC_CC_TYPE_PER_TRAN|	// Peripheral synchronized mode.
-				XDMAC_CC_CSIZE_CHK_1|
-				XDMAC_CC_MBSIZE_SINGLE|
-				XDMAC_CC_DSYNC_MEM2PER|
-				XDMAC_CC_DWIDTH_BYTE|
+				XDMAC_CC_CSIZE_CHK_1|		// Chunk size in terms of data unit, 1 byte, halfword (16-bits) or word (32-bits).
+											// For UART2 since UART_THR is only 1 byte deep, we set chunk size to 1.
+				XDMAC_CC_MBSIZE_SINGLE|		// Memory burst size, not used in memory-to-peripheral transfer.
+				XDMAC_CC_DSYNC_MEM2PER|		// Memory to peripheral.
+				XDMAC_CC_DWIDTH_BYTE|		// Data unit size = byte.
 				XDMAC_CC_SIF_AHB_IF0|		// Data is read through this AHB Master interface, connects to SRAM.
 				XDMAC_CC_DIF_AHB_IF1|		// Data is write through this AHB Master interface, connects to peripheral bus.
-				XDMAC_CC_SAM_INCREMENTED_AM|
-				XDMAC_CC_DAM_FIXED_AM|
+				XDMAC_CC_SAM_INCREMENTED_AM|	// Automatically increment source address.
+				XDMAC_CC_DAM_FIXED_AM|			// Fixed destination address.
 				XDMAC_CC_SWREQ_HWR_CONNECTED| // Hardware request line is connected to the peripheral request line.
-				XDMAC_CC_PERID(24);			// UART2 TX.  See datasheet.
+				XDMAC_CC_PERID(24);			// Connect to UART2 TX.  See datasheet.
 							
 				XDMAC->XDMAC_CHID[1].XDMAC_CNDC = 0;		// Next descriptor control register.
 				XDMAC->XDMAC_CHID[1].XDMAC_CBC = 0;			// Block control register.
@@ -294,7 +299,7 @@ void Proce_UART2_Driver(TASK_ATTRIBUTE *ptrTask)
                     }
 					else											// Transmit with DMA.
 					{
-						if ((XDMAC->XDMAC_GS & XDMAC_GS_ST1_Msk) == 0)	// Check if DMA UART transmit is completed.
+						if ((XDMAC->XDMAC_GS & XDMAC_GS_ST1_Msk) == 0)	// Check if DMA Channel 2 (UART2 TX) transmit is completed.
 						{
 							gSCIstatus.bTXRDY = 0;					// Reset transmit flag.
 							PIN_LED2_CLEAR;							// Off indicator LED2.

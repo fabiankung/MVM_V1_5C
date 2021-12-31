@@ -6,7 +6,7 @@
 //
 // File				: User_Task.c
 // Author(s)		: Fabian Kung
-// Last modified	: 25 Nov 2021
+// Last modified	: 18 Dec 2021
 // Tool-suites		: Atmel Studio 7.0 or later
 //                    GCC C-Compiler
 //                    ARM CMSIS 5.4.0
@@ -24,16 +24,6 @@
 //
 // --- PUBLIC VARIABLES ---
 //
-typedef struct StructMARKER
-{
-	unsigned int nAttrib;				// Attribute of marker
-	unsigned int nX;					// X coordinate of marker.
-	unsigned int nY;					// y coordinate of marker.
-} MARKER;
-
-MARKER	objMarker1;
-MARKER	objMarker2;
-MARKER	objMarker3;
 
 typedef struct StructRec
 {
@@ -49,12 +39,9 @@ typedef struct StructRec
 
 MARKER_RECTANGLE	gobjRec1;			// Marker objects.
 MARKER_RECTANGLE	gobjRec2;
-MARKER_RECTANGLE	gobjRec3;
 
 
 unsigned int	gunPtoALuminance;		// Peak-to-average luminance value of each frame.
-unsigned int	gunMaxLuminance;		// Maximum luminance in current frame, for debug purpose.
-unsigned int	gunMinLuminance;		// Minimum luminance in current frame, for debug purpose.
 
 int		gnSendSecondaryInfo = 0;		// Set to 1 (in Image Processing Tasks) to transmit secondary info such as marker location, 
 										// size attribute and string to remote display.  Else set to 0.  If this is set 
@@ -88,16 +75,16 @@ uint8_t  gbytESP8266_TXBuffer[20];       // Transmit buffer for ESP8266 AT comma
 ///
 /// Author			: Fabian Kung
 ///
-/// Last modified	: 25 Nov 2021
+/// Last modified	: 18 Dec 2021
 ///
 /// Code Version	: 1.00
 ///
 /// Processor		: ARM Cortex-M7 family
 ///
 /// Processor/System Resource
-/// PINS			: Pin PD24 = Reset pin for HC-05 BlueTooth module.
+/// PINS			: 
 ///
-/// MODULES			: UART0 (Internal), PDC (Internal), USART0 (Internal).
+/// MODULES			: UART2 (Internal), XDMAC (Internal), USART0 (Internal).
 ///
 /// RTOS			: Ver 1 or above, round-robin scheduling.
 ///
@@ -184,7 +171,7 @@ uint8_t  gbytESP8266_TXBuffer[20];       // Transmit buffer for ESP8266 AT comma
 /// (x,y) = (60,60) with color code = 1.
 ///
 
-#define _PROCE_STREAMIMAGE_TIMEOUT_PERIOD	50*__NUM_SYSTEMTICK_MSEC // Set timeout period, 50 msec.
+#define _PROCE_STREAMIMAGE_TIMEOUT_PERIOD	110*__NUM_SYSTEMTICK_MSEC // Set timeout period, 110 msec.
 
 void Proce_MessageLoop_StreamImage(TASK_ATTRIBUTE *ptrTask)
 {
@@ -204,11 +191,10 @@ void Proce_MessageLoop_StreamImage(TASK_ATTRIBUTE *ptrTask)
 		switch (ptrTask->nState)
 		{
 			case 0: // State 0 - Initialization.
-			objMarker1.nAttrib = 0;			// Disable plotting of all markers in the graphic window of Remote host.
-			objMarker2.nAttrib = 0;
-			objMarker3.nAttrib = 0;
+		
 			PIN_LED2_CLEAR;					// Turn off indicator LED2.
 			nLineCounter = 0;
+			nTimeoutCounter = 0;
 			OSSetTaskContext(ptrTask, 1, 1000*__NUM_SYSTEMTICK_MSEC);     // Next state = 1, timer = 1000 msec.
 			break;
 			
@@ -224,13 +210,27 @@ void Proce_MessageLoop_StreamImage(TASK_ATTRIBUTE *ptrTask)
 			break;
 
 			case 2: // State 2 - Check gnESP8266Flag and dispense task.
-			if (gnESP8266Flag == 1)
+			if (gnESP8266Flag == 1)			// 'X' received.
 			{
-				OSSetTaskContext(ptrTask, 3, 1);					// Next state = 3, timer = 1.
+				if (gnSendSecondaryInfo == 0)
+				{
+					OSSetTaskContext(ptrTask, 3, 1);					// Next state = 3, timer = 1.
+				}
+				else
+				{
+					OSSetTaskContext(ptrTask, 5, 1);					// Next state = 5, timer = 1.
+				}
 			}
-			else if (gnESP8266Flag == 2)
+			else if (gnESP8266Flag == 2)	// '>' received.
 			{
-				OSSetTaskContext(ptrTask, 4, 1);					// Next state = 4, timer = 1.
+				if (gnSendSecondaryInfo == 0)
+				{				
+					OSSetTaskContext(ptrTask, 4, 1);					// Next state = 4, timer = 1.
+				}
+				else
+				{
+					OSSetTaskContext(ptrTask, 6, 1);					// Next state = 6, timer = 1.
+				}
 			}
 			else if (gnESP8266Flag == 0)
 			{
@@ -243,7 +243,7 @@ void Proce_MessageLoop_StreamImage(TASK_ATTRIBUTE *ptrTask)
 			break;
 			
 			case 3: // State 3 - Prepare data to send and request ESP8266 for transmission.
-			// a) wait for start signal (the character 'X') from remote host on UART2.
+			// Start signal (the character 'X') received from remote host on UART2.
 			// Once start signal received, pre-process 1 row of pixel data.
 			//PIOA->PIO_ODSR |= PIO_ODSR_P8;					// Set flag 4.
 			// --- Message clearing and stream video image for WiFi connection ---
@@ -403,9 +403,9 @@ void Proce_MessageLoop_StreamImage(TASK_ATTRIBUTE *ptrTask)
 			//PIOD->PIO_ODSR |= PIO_ODSR_P22;					// Set PD22.
 			if ((gnESP8266Flag == 2)	&& (gSCIstatus.bTXRDY == 0))		// The flag is 2 if remote client send the character '>'.
 			{
-				SCB_CleanDCache();		// If we are using data cache (D-Cache), we should clean the data cache
-				// (D-Cache) before enabling the DMA. Otherwise when XDMAC access data
-				// from the cache, it may not contains the correct and up-to-date data.
+				SCB_CleanDCache();											// If we are using data cache (D-Cache), we should clean the data cache
+																			// (D-Cache) before enabling the DMA. Otherwise when XDMAC access data
+																			// from the cache, it may not contains the correct and up-to-date data.
 				XDMAC->XDMAC_CHID[1].XDMAC_CSA = (uint32_t) gbytTXbuffer;	// Set source start address.
 				XDMAC->XDMAC_CHID[1].XDMAC_CUBC = XDMAC_CUBC_UBLEN(nXposCounter+3);	// Set number of bytes to transmit. Remember
 																			// to add in the 3 bytes of header.
@@ -418,6 +418,7 @@ void Proce_MessageLoop_StreamImage(TASK_ATTRIBUTE *ptrTask)
 				if (nLineCounter > gnImageHeight)							// Check if reach end of line.
 				{
 					nLineCounter = 0;										// Reset line counter.
+					gnSendSecondaryInfo = 1;								// Indicate the next transmission is to send auxilary data, not pixel data.
 				}
 				
 				gnESP8266Flag = 0;											// Clear flag.
@@ -439,8 +440,274 @@ void Proce_MessageLoop_StreamImage(TASK_ATTRIBUTE *ptrTask)
 			//PIOD->PIO_ODSR &= ~PIO_ODSR_P22;								// Clear PD22.
 			break;
 						
+						
+			case 5: // State 5 - Prepare data to send and request ESP8266 for transmission, secondary info.
+			if ((gnESP8266Flag == 1) && (gSCIstatus.bTXRDY == 0))	// The flag gnESP8266Flag is 1 if remote client send the character 'X'.
+			{														// Also make sure UART2 is idle.			
+				gbytTXbuffer[0] = 0xFF;					// Start of line code.
+				gbytTXbuffer[1] = 254;					// Line number of 254 indicate auxiliary data.
+				gbytTXbuffer[2] = 13;					// Payload length is 13 bytes.
+			
+				gbytTXbuffer[3] = gobjRec1.nWidth;		// 0. Get the info for rectangle to be highlighted in remote display.
+				gbytTXbuffer[4] = gobjRec1.nHeight;		// 1. Height and width.
+				gbytTXbuffer[5] = gobjRec1.nX;			// 2. Starting point (top left hand corner) along x and y axes.
+				gbytTXbuffer[6] = gobjRec1.nY;			// 3.
+				gbytTXbuffer[7] = gobjRec1.nColor;		// 4. Set the color of the marker 1 .
+				gbytTXbuffer[8] = gobjRec2.nWidth;		// 0. Get the info for rectangle to be highlighted in remote display.
+				gbytTXbuffer[9] = gobjRec2.nHeight;		// 1. Height and width.
+				gbytTXbuffer[10] = gobjRec2.nX;			// 2. Starting point (top left hand corner) along x and y axes.
+				gbytTXbuffer[11] = gobjRec2.nY;			// 3.
+				gbytTXbuffer[12] = gobjRec2.nColor;		// 4. Set the color of the marker 2.
+				gbytTXbuffer[13] = gunAverageLuminance;		// Some tag along parameter for debugging purpose.
+				gbytTXbuffer[14] = 0;
+				gbytTXbuffer[15] = 0;				
+				
+				gbytESP8266_TXBuffer[0] = 'A';				// Ask ESP8266 to send specific data bytes to channel 0.
+				gbytESP8266_TXBuffer[1] = 'T';				//
+				gbytESP8266_TXBuffer[2] = '+';				//
+				gbytESP8266_TXBuffer[3] = 'C';				//
+				gbytESP8266_TXBuffer[4] = 'I';				//
+				gbytESP8266_TXBuffer[5] = 'P';				//
+				gbytESP8266_TXBuffer[6] = 'S';				//
+				gbytESP8266_TXBuffer[7] = 'E';				//
+				gbytESP8266_TXBuffer[8] = 'N';				//
+				gbytESP8266_TXBuffer[9] = 'D';				//
+				gbytESP8266_TXBuffer[10] = '=';				//
+				gbytESP8266_TXBuffer[11] = '0';				//
+				gbytESP8266_TXBuffer[12] = ',';				// Up to here total bytes is 13.	
+				gbytESP8266_TXBuffer[13] = '1';
+				gbytESP8266_TXBuffer[14] = '6';		
+				gbytESP8266_TXBuffer[15] = 0xD;				// Carriage Return or CR.  Note: always end commend with NL and CR.
+				gbytESP8266_TXBuffer[16] = 0xA;				// NL or '\n'				
+				
+				SCB_CleanDCache();		// If we are using data cache (D-Cache), we should clean the data cache
+				// (D-Cache) before enabling the DMA. Otherwise when XDMAC access data
+				// from the cache, it may not contains the correct and up-to-date data.
+				XDMAC->XDMAC_CHID[1].XDMAC_CSA = (uint32_t) gbytESP8266_TXBuffer;	// Set source start address.
+				XDMAC->XDMAC_CHID[1].XDMAC_CUBC = XDMAC_CUBC_UBLEN(17);	// Set number of bytes to transmit.
+				XDMAC->XDMAC_GE = XDMAC_GE_EN1;					// Enable channel 1 of XDMAC.
+				gSCIstatus.bTXDMAEN = 1;						// Indicate UART transmit with DMA.
+				gSCIstatus.bTXRDY = 1;							// Initiate TX.
+				PIN_LED2_SET;									// Lights up indicator LED2.
+				
+				gnESP8266Flag = 0;								// Clear flag.
+				nTimeoutCounter = 0;							// Reset timeout timer.	
+				//gnSendSecondaryInfo = 0;						// Clear transmit secondary info flag.	
+				OSSetTaskContext(ptrTask, 2, 1);				// Next state = 2, timer = 1.		
+			}
+			else
+			{
+				nTimeoutCounter++;											// Check for timeout.
+				if (nTimeoutCounter > _PROCE_STREAMIMAGE_TIMEOUT_PERIOD)
+				{
+					gnESP8266Flag = 0;										// Clear flag.
+				}
+				OSSetTaskContext(ptrTask, 2, 1);						// Next state = 2, timer = 1.
+			}							
+			break;
+
+			case 6: // State 6 - Start transmit of auxiliary data to remote monitor via ESP8266.
+			if ((gnESP8266Flag == 2)	&& (gSCIstatus.bTXRDY == 0))		// The flag is 2 if remote client send the character '>'.
+			{
+				SCB_CleanDCache();											// If we are using data cache (D-Cache), we should clean the data cache
+																			// (D-Cache) before enabling the DMA. Otherwise when XDMAC access data
+																			// from the cache, it may not contains the correct and up-to-date data.
+				XDMAC->XDMAC_CHID[1].XDMAC_CSA = (uint32_t) gbytTXbuffer;	// Set source start address.
+				XDMAC->XDMAC_CHID[1].XDMAC_CUBC = XDMAC_CUBC_UBLEN(16);		// Set number of bytes to transmit. 
+				XDMAC->XDMAC_GE = XDMAC_GE_EN1;								// Enable channel 1 of XDMAC.
+				gSCIstatus.bTXDMAEN = 1;									// Indicate UART transmit with DMA.
+				gSCIstatus.bTXRDY = 1;										// Initiate TX.
+				PIN_LED2_SET;												// Lights up indicator LED2.
+				gnSendSecondaryInfo = 0;									// Clear flag to send auxiliary data, not pixel data.
+				
+				gnESP8266Flag = 0;											// Clear flag.
+				OSSetTaskContext(ptrTask, 2, 1);							// Next state = 2, timer = 1.
+			}
+			else
+			{
+				nTimeoutCounter++;											// Check for timeout.
+				if (nTimeoutCounter > _PROCE_STREAMIMAGE_TIMEOUT_PERIOD)
+				{
+					gnESP8266Flag = 0;										// Clear flag.
+					OSSetTaskContext(ptrTask, 2, 1);						// Next state = 2, timer = 1.
+				}
+				else
+				{
+					OSSetTaskContext(ptrTask, 6, 1);						// Next state = 6, timer = 1.
+				}
+			}
+			break;
+			
 			default:
 			OSSetTaskContext(ptrTask, 0, 1); // Back to state = 0, timer = 1.
+			break;
+		}
+	}
+}
+
+
+///
+/// Function name	: Proce_Echo_UART2_RX
+///
+/// Author			: Fabian Kung
+///
+/// Last modified	: 10 Dec 2021
+///
+/// Code Version	: 0.80
+///
+/// Processor		: ARM Cortex-M7 family
+///
+/// Processor/System Resource
+/// PINS			: 
+///
+/// MODULES			: UART2 (Internal), XDMAC, USART0 (Internal).
+///
+/// RTOS			: Ver 1 or above, round-robin scheduling.
+///
+/// Global Variables    :
+
+#ifdef __OS_VER			// Check RTOS version compatibility.
+#if __OS_VER < 1
+#error "Proce_Echo_UART2_RX: Incompatible OS version"
+#endif
+#else
+#error "Proce_Echo_UART2_RX: An RTOS is required with this function"
+#endif
+///
+/// Description	: Echo all the data received in UART2 to USART0 transmit port. 
+///               This process is used for debugging, so that we can monitor
+///               the communication between the micro-controller and external
+///               devices connected to UART2.
+
+void Proce_Echo_UART2_RX(TASK_ATTRIBUTE *ptrTask)
+{
+	int ni;
+	
+	if (ptrTask->nTimer == 0)
+	{
+		switch (ptrTask->nState)
+		{
+			case 0: // State 0 - Initialization.
+				OSSetTaskContext(ptrTask, 1, 500*__NUM_SYSTEMTICK_MSEC);     // Next state = 1, timer = 500 msec.
+			break;
+			
+			case 1: // State 1 - Check for data to be send out via USART0
+				if (gSCIstatus.bRXRDY == 1)					// Check if UART2 receive any data.
+				{
+					if (gSCIstatus.bRXOVF == 0)				// Make sure no overflow error.
+					{
+						if (gSCIstatus2.bTXRDY == 0)		// Make sure USART0 is idle.
+						{
+							for (ni = 0; ni < gbytRXbufptr; ni++)	// Go through all bytes in the UART2 receive buffer.
+							{
+								gbytTXbuffer2[ni] = gbytRXbuffer[ni];	// Load data from UART2 receive buffer to USART0 transmit buffer.
+							}
+							SCB_CleanDCache();						// If we are using data cache (D-Cache), we should clean the data cache
+							// (D-Cache) before enabling the DMA. This will refresh the D-cache with
+							// fresh SRAM values. Otherwise when XDMAC access data from the cache,
+							// it may not contains the correct and up-to-date data.
+							XDMAC->XDMAC_CHID[2].XDMAC_CSA = (uint32_t) gbytTXbuffer2;	// Set source start address.
+							XDMAC->XDMAC_CHID[2].XDMAC_CUBC = XDMAC_CUBC_UBLEN(ni);		// Set number of bytes to transmit.
+							XDMAC->XDMAC_GE = XDMAC_GE_EN2;								// Enable channel 2 of XDMAC.
+							//SCB_InvalidateDCache();
+							gSCIstatus2.bTXDMAEN = 1;									// Indicate USART0 transmit with DMA.
+							gSCIstatus2.bTXRDY = 1;										// Initiate TX.
+							PIN_LED2_SET;												// Lights up indicator LED2.
+						
+							gSCIstatus.bRXRDY = 0;				// Reset valid data flag.
+							gbytRXbufptr = 0; 					// Reset pointer.
+						} // if (gSCIstatus2.bTXRDY == 0)
+					}
+					else
+					{
+						gSCIstatus.bRXOVF = 0; 				// Reset overflow error flag.
+							gSCIstatus.bRXRDY = 0;				// Reset valid data flag.
+						gbytRXbufptr = 0; 					// Reset pointer.
+						PIN_LED2_CLEAR;						// Off indicator LED2.
+					} // if (gSCIstatus.bRXOVF == 0)
+				} // if (gSCIstatus.bRXRDY == 1)		
+				OSSetTaskContext(ptrTask, 1, 1); // Back to state = 1, timer = 1.
+			break;
+			
+			default:
+				OSSetTaskContext(ptrTask, 0, 1); // Back to state = 0, timer = 1.
+			break;			
+		}
+	}
+}
+
+///
+/// Function name	: Proce_IPA1
+///
+/// Author			: Fabian Kung
+///
+/// Last modified	: 18 Dec 2021
+///
+/// Code Version	: 0.80
+///
+/// Processor		: ARM Cortex-M7 family
+///
+/// Processor/System Resource
+/// PINS			:
+///
+/// MODULES			: 
+///
+/// RTOS			: Ver 1 or above, round-robin scheduling.
+///
+/// Global Variables    :
+
+#ifdef __OS_VER			// Check RTOS version compatibility.
+#if __OS_VER < 1
+#error "Proce_IPA1: Incompatible OS version"
+#endif
+#else
+#error "Proce_IPA1: An RTOS is required with this function"
+#endif
+///
+/// Description	: 
+
+void Proce_IPA1(TASK_ATTRIBUTE *ptrTask)
+{
+	int ni;
+	
+	if (ptrTask->nTimer == 0)
+	{
+		switch (ptrTask->nState)
+		{
+			case 0: // State 0 - Initialization.
+				OSSetTaskContext(ptrTask, 1, 500*__NUM_SYSTEMTICK_MSEC);     // Next state = 1, timer = 500 msec.
+			break;
+			
+			case 1: // State 1 - 
+				gobjRec1.nColor = 1;
+				gobjRec1.nHeight = 4;
+				gobjRec1.nWidth = 4;
+				gobjRec1.nX = 60;
+				gobjRec1.nY = 70;
+				gobjRec2.nColor = 2;
+				gobjRec2.nHeight = 5;
+				gobjRec2.nWidth = 5;
+				gobjRec2.nX = 30;
+				gobjRec2.nY = 90;			
+				OSSetTaskContext(ptrTask, 2, 1500*__NUM_SYSTEMTICK_MSEC); // Next state = 2, timer = 1500 msec.
+			break;
+
+			case 2: // State 2 - 
+				gobjRec1.nColor = 1;
+				gobjRec1.nHeight = 4;
+				gobjRec1.nWidth = 4;
+				gobjRec1.nX = 30;
+				gobjRec1.nY = 100;
+				gobjRec2.nColor = 2;
+				gobjRec2.nHeight = 5;
+				gobjRec2.nWidth = 5;
+				gobjRec2.nX = 90;
+				gobjRec2.nY = 30;
+				OSSetTaskContext(ptrTask, 1, 1500*__NUM_SYSTEMTICK_MSEC); // Next state = 1, timer = 1500 msec.
+			break;
+			
+			default:
+				OSSetTaskContext(ptrTask, 0, 1); // Back to state = 0, timer = 1.
 			break;
 		}
 	}

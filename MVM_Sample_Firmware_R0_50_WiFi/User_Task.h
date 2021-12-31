@@ -1,5 +1,5 @@
 // Author			: Fabian Kung
-// Date				: 15 Aug 2020
+// Date				: 10 Dec 2021
 // Filename			: User_Task.h
 
 
@@ -16,5 +16,7 @@
 //
 // --- PUBLIC FUNCTION PROTOTYPE ---
 //
-void Proce_MessageLoop_StreamImage(TASK_ATTRIBUTE *);
+void Proce_MessageLoop_StreamImage(TASK_ATTRIBUTE *);	// In file 'User_Task.c'
+void Proce_Echo_UART2_RX(TASK_ATTRIBUTE *);				// In file 'User_Task.c'
+void Proce_IPA1(TASK_ATTRIBUTE *);						// In file 'User_Task.c'
 
